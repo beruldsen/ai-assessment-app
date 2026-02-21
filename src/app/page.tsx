@@ -12,8 +12,9 @@ export default function Home() {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         setStatus(`Connected ✅ (session: ${data.session ? "yes" : "no"})`);
-      } catch (e: any) {
-        setStatus(`Error ❌ ${e.message ?? String(e)}`);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        setStatus(`Error ❌ ${message}`);
       }
     }
     test();
