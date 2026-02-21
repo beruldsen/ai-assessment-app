@@ -14,7 +14,8 @@ export async function POST(req: Request) {
       .from("simulation_attempts")
       .insert({
         scenario_id: scenarioId,
-        status: "in_progress",
+        scenario_key: scenarioId,
+        status: "running",
       })
       .select("id")
       .single();
