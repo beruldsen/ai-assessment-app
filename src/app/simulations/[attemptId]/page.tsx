@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 
 type Msg = { id: string; sender: "user" | "assistant"; content: string; created_at: string };
 
@@ -15,18 +14,19 @@ export default function SimulationPage() {
 
   async function loadMessages() {
     if (!attemptId) return;
-    const { data, error } = await supabase
-      .from("simulation_messages")
-      .select("id,sender,content,created_at")
-      .eq("attempt_id", attemptId)
-      .order("created_at", { ascending: true });
 
-    if (error) {
-      setStatus(`error: ${error.message}`);
+    const res = await fetch(`/api/simulations/${attemptId}/messages`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    const json = await res.json();
+    if (!res.ok) {
+      setStatus(`error: ${json.error ?? "failed to load messages"}`);
       return;
     }
 
-    setMessages((data as Msg[]) ?? []);
+    setMessages((json.messages as Msg[]) ?? []);
   }
 
   useEffect(() => {
