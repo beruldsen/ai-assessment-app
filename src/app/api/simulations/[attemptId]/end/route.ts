@@ -10,13 +10,39 @@ export async function POST(_: Request, ctx: Ctx) {
     return NextResponse.json({ error: "attemptId is required" }, { status: 400 });
   }
 
-  const { error } = await supabaseServer
+  const attemptRes = await supabaseServer
+    .from("simulation_attempts")
+    .select("id, org_id")
+    .eq("id", attemptId)
+    .single();
+
+  if (attemptRes.error || !attemptRes.data) {
+    return NextResponse.json(
+      { error: attemptRes.error?.message ?? "Attempt not found" },
+      { status: 500 }
+    );
+  }
+
+  const updateRes = await supabaseServer
     .from("simulation_attempts")
     .update({ status: "completed" })
     .eq("id", attemptId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (updateRes.error) {
+    return NextResponse.json({ error: updateRes.error.message }, { status: 500 });
+  }
+
+  const jobRes = await supabaseServer.from("jobs").insert({
+    type: "score_simulation",
+    status: "pending",
+    payload: {
+      attemptId,
+      orgId: attemptRes.data.org_id ?? null,
+    },
+  });
+
+  if (jobRes.error) {
+    return NextResponse.json({ error: jobRes.error.message }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
