@@ -5,6 +5,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const scenarioId = body?.scenarioId as string | undefined;
+    const orgId = (body?.orgId as string | null | undefined) ?? null;
+    const userId = (body?.userId as string | null | undefined) ?? null;
 
     if (!scenarioId) {
       return NextResponse.json({ error: "scenarioId is required" }, { status: 400 });
@@ -15,7 +17,9 @@ export async function POST(req: Request) {
       .insert({
         scenario_id: scenarioId,
         scenario_key: scenarioId,
-        status: "running",
+        org_id: orgId,
+        user_id: userId,
+        status: "running", // DB constraint currently allows pending|running|completed|failed
       })
       .select("id")
       .single();
