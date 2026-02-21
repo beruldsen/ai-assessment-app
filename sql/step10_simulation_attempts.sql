@@ -27,12 +27,14 @@ create index if not exists simulation_attempts_status_idx
 alter table public.simulation_attempts enable row level security;
 
 -- Participants can only see and create their own attempts
-create policy if not exists "attempts_select_own"
+drop policy if exists "attempts_select_own" on public.simulation_attempts;
+create policy "attempts_select_own"
 on public.simulation_attempts
 for select
 using (auth.uid() = user_id);
 
-create policy if not exists "attempts_insert_own"
+drop policy if exists "attempts_insert_own" on public.simulation_attempts;
+create policy "attempts_insert_own"
 on public.simulation_attempts
 for insert
 with check (auth.uid() = user_id);
