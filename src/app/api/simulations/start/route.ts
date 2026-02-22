@@ -6,22 +6,44 @@ function getCtx(context: unknown) {
   return context as Record<string, unknown>;
 }
 
+function cleanPhrase(value: string) {
+  return value.trim().replace(/[.\s]+$/g, "");
+}
+
+function lowerFirst(value: string) {
+  if (!value) return value;
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function cleanSellerRole(value: string) {
+  return cleanPhrase(value).replace(/^you are\s+/i, "");
+}
+
 function buildNaturalOpener(role: string, scenarioName: string, context: unknown) {
   const c = getCtx(context);
   const company = String(c.company ?? c.customer ?? "the business");
-  const challenge = c.challenge ? String(c.challenge) : "we need to improve business performance quickly";
-  const goal = c.goal ? String(c.goal) : "we need a clear path to measurable value";
-  const stakes = c.stakes ? String(c.stakes) : "I need confidence before recommending this internally";
+  const challenge = cleanPhrase(
+    c.challenge ? String(c.challenge) : "improving business performance quickly"
+  );
+  const goal = cleanPhrase(
+    c.goal ? String(c.goal) : "a clear path to measurable value"
+  );
+  const stakes = cleanPhrase(
+    c.stakes ? String(c.stakes) : "I need confidence before recommending this internally"
+  );
   const stage = c.deal_stage ? String(c.deal_stage) : "";
-  const sellerRole = c.seller_role ? String(c.seller_role) : "the presales lead";
+  const sellerRole = cleanSellerRole(
+    c.seller_role ? String(c.seller_role) : "the presales lead"
+  );
 
   return [
     `Hi, thanks for joining. I'm the ${role} at ${company}.`,
     `Quick context: this is the ${scenarioName}${stage ? ` (${stage} stage)` : ""}.`,
-    `We're facing ${challenge}.`,
-    `My objective is ${goal}, and ${stakes}.`,
-    `I understand your role here is ${sellerRole}.`,
-    "Give me your initial point of view in 30 seconds, then I will challenge your assumptions.",
+    `One challenge we're dealing with is ${lowerFirst(challenge)}.`,
+    `My objective is to ${lowerFirst(goal).replace(/^to\s+/i, "")}.`,
+    `The risk is that ${lowerFirst(stakes)}.`,
+    `I understand you're here as ${lowerFirst(sellerRole)}.`,
+    "Give me your initial point of view in 30 seconds, then I'll challenge your assumptions.",
   ].join(" ");
 }
 
