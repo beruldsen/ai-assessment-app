@@ -94,13 +94,20 @@ export async function scoreSimulation(payload: JobPayload) {
   const scenario = (scenarioRes.data as { simulation_scenarios: { name: string; role: string; context: unknown } | null }).simulation_scenarios;
   const messages = messagesRes.data;
 
+  const candidateTurns = messages
+    .map((m, i) => ({ msg_index: i, sender: m.sender, content: m.content }))
+    .filter((m) => m.sender === "user");
+
   const prompt = [
     "You are an assessment extractor.",
+    "Assess ONLY the candidate (sender='user'). Do NOT score the buyer/assistant persona.",
+    "Buyer/assistant messages are context only.",
     "Return strictly JSON object with key `evidence` whose value is an array.",
     "No markdown, no prose.",
     "Each evidence item must include: domain, indicator, strength (strong|moderate|weak), confidence (0..1), excerpts[], notes.",
     `Scenario: ${JSON.stringify(scenario)}`,
-    `Transcript: ${JSON.stringify(messages.map((m, i) => ({ msg_index: i, ...m })))}`,
+    `Candidate turns only (score these): ${JSON.stringify(candidateTurns)}`,
+    `Full transcript (context): ${JSON.stringify(messages.map((m, i) => ({ msg_index: i, ...m })))}`,
   ].join("\n");
 
   const completion = await openai.chat.completions.create({
