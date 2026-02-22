@@ -32,18 +32,22 @@ export async function POST(_: Request, ctx: Ctx) {
     return NextResponse.json({ error: updateRes.error.message }, { status: 500 });
   }
 
-  const jobRes = await supabaseServer.from("jobs").insert({
-    type: "score_simulation",
-    status: "pending",
-    payload: {
-      attemptId,
-      orgId: attemptRes.data.org_id ?? null,
-    },
-  });
+  const jobRes = await supabaseServer
+    .from("jobs")
+    .insert({
+      type: "score_simulation",
+      status: "pending",
+      payload: {
+        attemptId,
+        orgId: attemptRes.data.org_id ?? null,
+      },
+    })
+    .select("id")
+    .single();
 
   if (jobRes.error) {
     return NextResponse.json({ error: jobRes.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, jobId: jobRes.data.id });
 }
