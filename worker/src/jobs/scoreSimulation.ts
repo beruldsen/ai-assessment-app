@@ -70,6 +70,37 @@ type JobPayload = {
   orgId?: string | null;
 };
 
+function calibrateScores(
+  scores: Array<{ domain: string; score: number; maturity: string; evidence_count: number }>,
+  candidateTurns: Array<{ content: string }>
+) {
+  const turnCount = candidateTurns.length;
+  const avgLen =
+    turnCount > 0
+      ? candidateTurns.reduce((sum, t) => sum + (t.content?.trim().length ?? 0), 0) / turnCount
+      : 0;
+
+  return scores.map((s) => {
+    let capped = s.score;
+
+    if (turnCount <= 1) capped = Math.min(capped, 2.0);
+    else if (turnCount === 2) capped = Math.min(capped, 3.0);
+
+    if (avgLen < 50) capped = Math.min(capped, 2.5);
+    else if (avgLen < 90) capped = Math.min(capped, 3.5);
+
+    if (s.evidence_count < 2) capped = Math.min(capped, 3.5);
+
+    const maturity = capped >= 4 ? "future_ready" : capped >= 2.5 ? "advanced" : "foundation";
+
+    return {
+      ...s,
+      score: Number(capped.toFixed(2)),
+      maturity,
+    };
+  });
+}
+
 export async function scoreSimulation(payload: JobPayload) {
   const { attemptId, orgId = null } = payload;
 
@@ -105,6 +136,7 @@ export async function scoreSimulation(payload: JobPayload) {
     "Return strictly JSON object with key `evidence` whose value is an array.",
     "No markdown, no prose.",
     "Each evidence item must include: domain, indicator, strength (strong|moderate|weak), confidence (0..1), excerpts[], notes.",
+    "Be conservative: for brief or generic candidate answers, use weak/moderate evidence, not strong.",
     `Scenario: ${JSON.stringify(scenario)}`,
     `Candidate turns only (score these): ${JSON.stringify(candidateTurns)}`,
     `Full transcript (context): ${JSON.stringify(messages.map((m, i) => ({ msg_index: i, ...m })))}`,
@@ -151,7 +183,8 @@ export async function scoreSimulation(payload: JobPayload) {
     if (ins.error) throw new Error(ins.error.message);
   }
 
-  const scores = computeScores(evidenceList.map((e) => ({ domain: e.domain, strength: e.strength })));
+  const rawScores = computeScores(evidenceList.map((e) => ({ domain: e.domain, strength: e.strength })));
+  const scores = calibrateScores(rawScores, candidateTurns);
 
   if (scores.length > 0) {
     const scoreIns = await supabase.from("scores").insert(
