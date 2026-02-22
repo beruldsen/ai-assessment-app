@@ -11,12 +11,20 @@ type Message = {
   created_at: string;
 };
 
+type ScenarioMeta = {
+  id: string;
+  name: string;
+  role: string;
+  context: Record<string, unknown> | null;
+};
+
 export default function SimulationAttemptPage() {
   const params = useParams<{ attemptId: string }>();
   const router = useRouter();
   const attemptId = params?.attemptId;
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [scenario, setScenario] = useState<ScenarioMeta | null>(null);
   const [content, setContent] = useState("");
   const [status, setStatus] = useState("loading");
   const [busy, setBusy] = useState(false);
@@ -24,18 +32,26 @@ export default function SimulationAttemptPage() {
   async function loadMessages() {
     if (!attemptId) return;
 
-    const { data, error } = await supabase
-      .from("simulation_messages")
-      .select("id, sender, content, created_at")
-      .eq("attempt_id", attemptId)
-      .order("created_at", { ascending: true });
+    const [msgRes, metaRes] = await Promise.all([
+      supabase
+        .from("simulation_messages")
+        .select("id, sender, content, created_at")
+        .eq("attempt_id", attemptId)
+        .order("created_at", { ascending: true }),
+      fetch(`/api/simulations/${attemptId}`, { cache: "no-store" }),
+    ]);
 
-    if (error) {
-      setStatus(`error: ${error.message}`);
+    if (msgRes.error) {
+      setStatus(`error: ${msgRes.error.message}`);
       return;
     }
 
-    setMessages((data as Message[]) ?? []);
+    const metaJson = await metaRes.json();
+    if (metaRes.ok) {
+      setScenario((metaJson.attempt?.simulation_scenarios as ScenarioMeta) ?? null);
+    }
+
+    setMessages((msgRes.data as Message[]) ?? []);
     setStatus("running");
   }
 
@@ -88,6 +104,21 @@ export default function SimulationAttemptPage() {
       <h1>Simulation</h1>
       <p>Attempt: {attemptId}</p>
       <p>Status: {status}</p>
+
+      {scenario ? (
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12, background: "#fafafa" }}>
+          <strong>Scenario context</strong>
+          <div style={{ marginTop: 6 }}>
+            <div><strong>Scenario:</strong> {scenario.name}</div>
+            <div><strong>Role:</strong> {scenario.role}</div>
+            {scenario.context ? (
+              <pre style={{ whiteSpace: "pre-wrap", marginTop: 8, fontSize: 13 }}>
+                {JSON.stringify(scenario.context, null, 2)}
+              </pre>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, minHeight: 260 }}>
         {messages.length === 0 ? (
