@@ -2,6 +2,7 @@ import { z } from "zod";
 import { openai } from "../openai";
 import { supabase } from "../supabase";
 import { computeScores } from "../scoring/computeScores";
+import { DOMAINS, type Domain } from "../scoring/rubric";
 
 const EvidenceSchema = z.object({
   domain: z.string().min(1),
@@ -21,7 +22,25 @@ const EvidenceSchema = z.object({
 
 const EvidenceListSchema = z.array(EvidenceSchema);
 
-function normalizeEvidencePayload(input: unknown) {
+const DOMAIN_ALIAS: Array<{ pattern: RegExp; domain: Domain }> = [
+  { pattern: /curious|curiosity|discovery question|problem solving|questioning/i, domain: "Curiosity" },
+  { pattern: /value|business impact|outcome|roi|quantif/i, domain: "Value Discovery" },
+  { pattern: /executive|presence|story|communicat|clarity|improvis/i, domain: "Executive Presence" },
+  { pattern: /influence|collab|stakeholder|alignment|orchestrat/i, domain: "Influence" },
+  { pattern: /ownership|commercial|accountab|drive|commercial acumen|negotiat/i, domain: "Commercial Ownership" },
+];
+
+function mapToDomain(raw: string): Domain {
+  for (const d of DOMAINS) {
+    if (raw.toLowerCase() === d.toLowerCase()) return d;
+  }
+  for (const a of DOMAIN_ALIAS) {
+    if (a.pattern.test(raw)) return a.domain;
+  }
+  return "Curiosity";
+}
+
+function normalizeEvidencePayload(input: unknown, allowedUserMsgIndices: Set<number>) {
   const toArray = (v: unknown): unknown[] => {
     if (Array.isArray(v)) return v;
     if (v && typeof v === "object") {
@@ -39,7 +58,8 @@ function normalizeEvidencePayload(input: unknown) {
   return rawItems.map((item) => {
     const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
 
-    const domain = String(o.domain ?? o.category ?? o.competency ?? "General").trim();
+    const rawDomain = String(o.domain ?? o.category ?? o.competency ?? "Curiosity").trim();
+    const domain = mapToDomain(rawDomain);
     const indicator = String(o.indicator ?? o.behavior ?? o.signal ?? "Observed behavior").trim();
     const strengthRaw = String(o.strength ?? o.rating ?? o.level ?? "moderate").toLowerCase();
     const strength = strengthRaw === "strong" || strengthRaw === "weak" ? strengthRaw : "moderate";
@@ -54,14 +74,17 @@ function normalizeEvidencePayload(input: unknown) {
         const ex = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
         return {
           text: String(ex.text ?? "").trim(),
-          msg_index: Number.isFinite(Number(ex.msg_index)) ? Number(ex.msg_index) : 0,
+          msg_index: Number.isFinite(Number(ex.msg_index)) ? Number(ex.msg_index) : -1,
         };
       })
-      .filter((x) => x.text.length > 0);
+      .filter((x) => x.text.length > 0 && allowedUserMsgIndices.has(x.msg_index));
 
     const notes = String(o.notes ?? o.rationale ?? "").trim();
 
-    return { domain, indicator, strength, confidence, excerpts, notes };
+    const safeStrength = excerpts.length === 0 && strength === "strong" ? "moderate" : strength;
+    const safeConfidence = excerpts.length === 0 ? Math.min(confidence, 0.6) : confidence;
+
+    return { domain, indicator, strength: safeStrength, confidence: safeConfidence, excerpts, notes };
   });
 }
 
@@ -128,6 +151,7 @@ export async function scoreSimulation(payload: JobPayload) {
   const candidateTurns = messages
     .map((m, i) => ({ msg_index: i, sender: m.sender, content: m.content }))
     .filter((m) => m.sender === "user");
+  const candidateMsgIndices = new Set(candidateTurns.map((t) => t.msg_index));
 
   const prompt = [
     "You are an assessment extractor.",
@@ -136,6 +160,8 @@ export async function scoreSimulation(payload: JobPayload) {
     "Return strictly JSON object with key `evidence` whose value is an array.",
     "No markdown, no prose.",
     "Each evidence item must include: domain, indicator, strength (strong|moderate|weak), confidence (0..1), excerpts[], notes.",
+    `Allowed domains only: ${DOMAINS.join(", ")}.`,
+    "Every evidence item must reference at least one candidate excerpt with valid msg_index from candidate turns.",
     "Be conservative: for brief or generic candidate answers, use weak/moderate evidence, not strong.",
     `Scenario: ${JSON.stringify(scenario)}`,
     `Candidate turns only (score these): ${JSON.stringify(candidateTurns)}`,
@@ -161,7 +187,7 @@ export async function scoreSimulation(payload: JobPayload) {
     parsed = { evidence: [] };
   }
 
-  const normalized = normalizeEvidencePayload(parsed);
+  const normalized = normalizeEvidencePayload(parsed, candidateMsgIndices);
   const evidenceList = EvidenceListSchema.parse(normalized);
 
   await supabase.from("evidence").delete().eq("attempt_id", attemptId);
