@@ -21,6 +21,50 @@ const EvidenceSchema = z.object({
 
 const EvidenceListSchema = z.array(EvidenceSchema);
 
+function normalizeEvidencePayload(input: unknown) {
+  const toArray = (v: unknown): unknown[] => {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === "object") {
+      const obj = v as Record<string, unknown>;
+      const candidates = [obj.evidence, obj.items, obj.data, obj.results];
+      for (const c of candidates) {
+        if (Array.isArray(c)) return c;
+      }
+    }
+    return [];
+  };
+
+  const rawItems = toArray(input);
+
+  return rawItems.map((item) => {
+    const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+
+    const domain = String(o.domain ?? o.category ?? o.competency ?? "General").trim();
+    const indicator = String(o.indicator ?? o.behavior ?? o.signal ?? "Observed behavior").trim();
+    const strengthRaw = String(o.strength ?? o.rating ?? o.level ?? "moderate").toLowerCase();
+    const strength = strengthRaw === "strong" || strengthRaw === "weak" ? strengthRaw : "moderate";
+
+    let confidence = Number(o.confidence ?? o.score_confidence ?? 0.65);
+    if (!Number.isFinite(confidence)) confidence = 0.65;
+    confidence = Math.max(0, Math.min(1, confidence));
+
+    const excerptsRaw = Array.isArray(o.excerpts) ? o.excerpts : [];
+    const excerpts = excerptsRaw
+      .map((x) => {
+        const ex = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+        return {
+          text: String(ex.text ?? "").trim(),
+          msg_index: Number.isFinite(Number(ex.msg_index)) ? Number(ex.msg_index) : 0,
+        };
+      })
+      .filter((x) => x.text.length > 0);
+
+    const notes = String(o.notes ?? o.rationale ?? "").trim();
+
+    return { domain, indicator, strength, confidence, excerpts, notes };
+  });
+}
+
 type JobPayload = {
   attemptId: string;
   orgId?: string | null;
@@ -52,9 +96,9 @@ export async function scoreSimulation(payload: JobPayload) {
 
   const prompt = [
     "You are an assessment extractor.",
-    "Given a simulation transcript, output ONLY JSON array of evidence objects.",
+    "Return strictly JSON object with key `evidence` whose value is an array.",
     "No markdown, no prose.",
-    "Allowed strengths: strong, moderate, weak.",
+    "Each evidence item must include: domain, indicator, strength (strong|moderate|weak), confidence (0..1), excerpts[], notes.",
     `Scenario: ${JSON.stringify(scenario)}`,
     `Transcript: ${JSON.stringify(messages.map((m, i) => ({ msg_index: i, ...m })))}`,
   ].join("\n");
@@ -70,8 +114,16 @@ export async function scoreSimulation(payload: JobPayload) {
   });
 
   const raw = completion.choices?.[0]?.message?.content ?? "{\"evidence\":[]}";
-  const parsed = JSON.parse(raw);
-  const evidenceList = EvidenceListSchema.parse(parsed.evidence ?? []);
+
+  let parsed: unknown = { evidence: [] };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = { evidence: [] };
+  }
+
+  const normalized = normalizeEvidencePayload(parsed);
+  const evidenceList = EvidenceListSchema.parse(normalized);
 
   await supabase.from("evidence").delete().eq("attempt_id", attemptId);
   await supabase.from("scores").delete().eq("attempt_id", attemptId);
