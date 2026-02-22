@@ -105,6 +105,14 @@ type JobPayload = {
   orgId?: string | null;
 };
 
+const AiScoreItemSchema = z.object({
+  domain: z.string(),
+  score: z.number().min(0).max(5),
+  rationale: z.string().default(""),
+});
+
+const AiScoreSchema = z.object({ scores: z.array(AiScoreItemSchema) });
+
 function calibrateScores(
   scores: Array<{ domain: string; score: number; maturity: string; evidence_count: number }>,
   candidateTurns: Array<{ content: string }>
@@ -132,6 +140,59 @@ function calibrateScores(
       ...s,
       score: Number(capped.toFixed(2)),
       maturity,
+    };
+  });
+}
+
+async function aiConstrainedScores(input: {
+  scenario: unknown;
+  candidateTurns: Array<{ msg_index: number; content: string }>;
+  evidenceList: Array<{ domain: string; indicator: string; strength: string; confidence: number; notes: string }>;
+}) {
+  const prompt = [
+    "You are a strict assessment rater.",
+    `Allowed domains: ${DOMAINS.join(", ")}.`,
+    "Score each domain 0..5 based only on provided candidate turns and evidence.",
+    "Do not inflate scores for short/generic answers.",
+    "Return JSON object: { scores: [{domain, score, rationale}] }",
+    `Scenario: ${JSON.stringify(input.scenario)}`,
+    `Candidate turns: ${JSON.stringify(input.candidateTurns)}`,
+    `Evidence: ${JSON.stringify(input.evidenceList)}`,
+  ].join("\n");
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    temperature: 0,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: "Return only valid JSON." },
+      { role: "user", content: prompt },
+    ],
+  });
+
+  const raw = completion.choices?.[0]?.message?.content ?? "{\"scores\":[]}";
+
+  let parsed: unknown = { scores: [] };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = { scores: [] };
+  }
+
+  const aiScores = AiScoreSchema.parse(parsed).scores;
+  const evidenceCountByDomain = input.evidenceList.reduce<Record<string, number>>((acc, e) => {
+    acc[e.domain] = (acc[e.domain] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return aiScores.map((s) => {
+    const domain = mapToDomain(s.domain);
+    const score = Math.max(0, Math.min(5, Number(s.score)));
+    return {
+      domain,
+      score,
+      maturity: score >= 4 ? "future_ready" : score >= 2.5 ? "advanced" : "foundation",
+      evidence_count: evidenceCountByDomain[domain] ?? 0,
     };
   });
 }
@@ -222,8 +283,24 @@ export async function scoreSimulation(payload: JobPayload) {
     if (ins.error) throw new Error(ins.error.message);
   }
 
-  const rawScores = computeScores(evidenceList.map((e) => ({ domain: e.domain, strength: e.strength })));
-  const scores = calibrateScores(rawScores, candidateTurns);
+  const scoringMode = (process.env.SCORING_MODE ?? "deterministic").toLowerCase();
+
+  const preCalibratedScores =
+    scoringMode === "ai_constrained"
+      ? await aiConstrainedScores({
+          scenario,
+          candidateTurns,
+          evidenceList: evidenceList.map((e) => ({
+            domain: e.domain,
+            indicator: e.indicator,
+            strength: e.strength,
+            confidence: e.confidence,
+            notes: e.notes,
+          })),
+        })
+      : computeScores(evidenceList.map((e) => ({ domain: e.domain, strength: e.strength })));
+
+  const scores = calibrateScores(preCalibratedScores, candidateTurns);
 
   if (scores.length > 0) {
     const scoreIns = await supabase.from("scores").insert(
@@ -239,5 +316,9 @@ export async function scoreSimulation(payload: JobPayload) {
     if (scoreIns.error) throw new Error(scoreIns.error.message);
   }
 
-  return { evidenceCount: evidenceList.length, domainsScored: scores.length };
+  return {
+    evidenceCount: evidenceList.length,
+    domainsScored: scores.length,
+    scoringMode: (process.env.SCORING_MODE ?? "deterministic").toLowerCase(),
+  };
 }
