@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type Message = {
@@ -13,6 +13,7 @@ type Message = {
 
 export default function SimulationAttemptPage() {
   const params = useParams<{ attemptId: string }>();
+  const router = useRouter();
   const attemptId = params?.attemptId;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -35,7 +36,7 @@ export default function SimulationAttemptPage() {
     }
 
     setMessages((data as Message[]) ?? []);
-    setStatus("ready");
+    setStatus("running");
   }
 
   useEffect(() => {
@@ -79,22 +80,22 @@ export default function SimulationAttemptPage() {
     }
 
     setStatus("completed");
-    setBusy(false);
+    router.push(`/simulation/${attemptId}/results?jobId=${json.jobId}`);
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 800, margin: "0 auto" }}>
+    <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
       <h1>Simulation</h1>
       <p>Attempt: {attemptId}</p>
       <p>Status: {status}</p>
 
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, minHeight: 220 }}>
+      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, minHeight: 260 }}>
         {messages.length === 0 ? (
           <p style={{ opacity: 0.7 }}>No messages yet.</p>
         ) : (
           messages.map((m) => (
             <div key={m.id} style={{ marginBottom: 10 }}>
-              <strong>{m.sender === "user" ? "You" : "Assistant"}:</strong> {m.content}
+              <strong>{m.sender === "user" ? "You" : "Buyer"}:</strong> {m.content}
             </div>
           ))
         )}
@@ -114,7 +115,7 @@ export default function SimulationAttemptPage() {
       </div>
 
       <button onClick={endSimulation} disabled={busy || status === "completed"} style={{ marginTop: 12 }}>
-        End simulation
+        End simulation and score
       </button>
     </main>
   );
