@@ -128,6 +128,9 @@ export default function SimulationAttemptPage() {
                 {contextLine("Desired outcome", scenario.context.goal)}
                 {contextLine("Stake/pressure", scenario.context.stakes)}
                 {contextLine("Deal stage", scenario.context.deal_stage)}
+                {contextLine("Buyer profile", scenario.context.buyer_profile)}
+                {contextLine("Your seller role", scenario.context.seller_role)}
+                {contextLine("Seller mandate", scenario.context.seller_mandate)}
               </ul>
             ) : null}
             <p style={{ marginTop: 8, opacity: 0.8 }}>

@@ -13,12 +13,14 @@ function buildNaturalOpener(role: string, scenarioName: string, context: unknown
   const goal = c.goal ? String(c.goal) : "we need a clear path to measurable value";
   const stakes = c.stakes ? String(c.stakes) : "I need confidence before recommending this internally";
   const stage = c.deal_stage ? String(c.deal_stage) : "";
+  const sellerRole = c.seller_role ? String(c.seller_role) : "the presales lead";
 
   return [
     `Hi, thanks for joining. I'm the ${role} at ${company}.`,
     `Quick context: this is the ${scenarioName}${stage ? ` (${stage} stage)` : ""}.`,
     `We're facing ${challenge}.`,
     `My objective is ${goal}, and ${stakes}.`,
+    `I understand your role here is ${sellerRole}.`,
     "Give me your initial point of view in 30 seconds, then I will challenge your assumptions.",
   ].join(" ");
 }
