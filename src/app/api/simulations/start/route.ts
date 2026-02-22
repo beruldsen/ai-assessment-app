@@ -19,6 +19,11 @@ function cleanSellerRole(value: string) {
   return cleanPhrase(value).replace(/^you are\s+/i, "");
 }
 
+function cleanStakes(value: string) {
+  const s = cleanPhrase(value);
+  return s.replace(/^if\s+/i, "if ");
+}
+
 function buildNaturalOpener(role: string, scenarioName: string, context: unknown) {
   const c = getCtx(context);
   const company = String(c.company ?? c.customer ?? "the business");
@@ -28,7 +33,7 @@ function buildNaturalOpener(role: string, scenarioName: string, context: unknown
   const goal = cleanPhrase(
     c.goal ? String(c.goal) : "a clear path to measurable value"
   );
-  const stakes = cleanPhrase(
+  const stakes = cleanStakes(
     c.stakes ? String(c.stakes) : "I need confidence before recommending this internally"
   );
   const stage = c.deal_stage ? String(c.deal_stage) : "";
