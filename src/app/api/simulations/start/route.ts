@@ -8,16 +8,18 @@ function getCtx(context: unknown) {
 
 function buildNaturalOpener(role: string, scenarioName: string, context: unknown) {
   const c = getCtx(context);
-  const company = String(c.company ?? c.customer ?? "our company");
+  const company = String(c.company ?? c.customer ?? "the business");
   const challenge = c.challenge ? String(c.challenge) : "we need to improve business performance quickly";
   const goal = c.goal ? String(c.goal) : "we need a clear path to measurable value";
   const stakes = c.stakes ? String(c.stakes) : "I need confidence before recommending this internally";
+  const stage = c.deal_stage ? String(c.deal_stage) : "";
 
   return [
-    `Hi, thanks for joining. I’m the ${role} at ${company}. This is part of the ${scenarioName} discussion.`,
-    `To give you context, ${challenge}.`,
-    `My main objective is ${goal}, and ${stakes}.`,
-    "Before we discuss solutions, I’d like to hear your view: what would you want to understand first in my situation?",
+    `Hi, thanks for joining. I'm the ${role} at ${company}.`,
+    `Quick context: this is the ${scenarioName}${stage ? ` (${stage} stage)` : ""}.`,
+    `We're facing ${challenge}.`,
+    `My objective is ${goal}, and ${stakes}.`,
+    "Start by asking me a couple of focused discovery questions before proposing a solution.",
   ].join(" ");
 }
 

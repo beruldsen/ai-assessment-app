@@ -127,6 +127,7 @@ export default function SimulationAttemptPage() {
                 {contextLine("Current challenge", scenario.context.challenge)}
                 {contextLine("Desired outcome", scenario.context.goal)}
                 {contextLine("Stake/pressure", scenario.context.stakes)}
+                {contextLine("Deal stage", scenario.context.deal_stage)}
               </ul>
             ) : null}
             <p style={{ marginTop: 8, opacity: 0.8 }}>
