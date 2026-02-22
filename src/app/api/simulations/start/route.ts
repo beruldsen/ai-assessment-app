@@ -19,7 +19,7 @@ function buildNaturalOpener(role: string, scenarioName: string, context: unknown
     `Quick context: this is the ${scenarioName}${stage ? ` (${stage} stage)` : ""}.`,
     `We're facing ${challenge}.`,
     `My objective is ${goal}, and ${stakes}.`,
-    "Start by asking me a couple of focused discovery questions before proposing a solution.",
+    "Give me your initial point of view in 30 seconds, then I will challenge your assumptions.",
   ].join(" ");
 }
 

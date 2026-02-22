@@ -91,8 +91,10 @@ export async function POST(req: Request, ctx: Ctx) {
       "Rules:",
       `- Stay in character as the ${scenario.role}.`,
       "- Be realistic, slightly challenging, concise, and business-oriented.",
+      "- Speak as a buyer/executive, not as a seller, coach, or interviewer.",
+      "- Do not advise the candidate on what they should ask or how to sell.",
       "- Keep responses to max 3-4 sentences unless candidate asks for detail.",
-      "- Ask one sharp follow-up question most turns.",
+      "- Usually respond with a business reaction plus at most one clarifying/challenging question.",
       "- Do not mention you are an AI or that this is a simulation.",
     ].join("\n");
 
