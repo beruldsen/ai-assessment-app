@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 
-function buildScenarioBrief(context: unknown) {
-  if (!context || typeof context !== "object") return "";
-  const c = context as Record<string, unknown>;
-  const parts: string[] = [];
-  if (c.company) parts.push(`Company: ${String(c.company)}`);
-  if (c.industry) parts.push(`Industry: ${String(c.industry)}`);
-  if (c.challenge) parts.push(`Challenge: ${String(c.challenge)}`);
-  if (c.goal) parts.push(`Goal: ${String(c.goal)}`);
-  if (c.stakes) parts.push(`Stakes: ${String(c.stakes)}`);
-  return parts.join(" | ");
+function getCtx(context: unknown) {
+  if (!context || typeof context !== "object") return {} as Record<string, unknown>;
+  return context as Record<string, unknown>;
+}
+
+function buildNaturalOpener(role: string, scenarioName: string, context: unknown) {
+  const c = getCtx(context);
+  const company = String(c.company ?? c.customer ?? "our company");
+  const challenge = c.challenge ? String(c.challenge) : "we need to improve business performance quickly";
+  const goal = c.goal ? String(c.goal) : "we need a clear path to measurable value";
+  const stakes = c.stakes ? String(c.stakes) : "I need confidence before recommending this internally";
+
+  return [
+    `Hi, thanks for joining. I’m the ${role} at ${company}. This is part of the ${scenarioName} discussion.`,
+    `To give you context, ${challenge}.`,
+    `My main objective is ${goal}, and ${stakes}.`,
+    "Before we discuss solutions, I’d like to hear your view: what would you want to understand first in my situation?",
+  ].join(" ");
 }
 
 export async function POST(req: Request) {
@@ -46,13 +54,11 @@ export async function POST(req: Request) {
       .eq("id", scenarioId)
       .single();
 
-    const scenarioBrief = buildScenarioBrief(scenario?.context);
-
-    const opener = [
-      `Hi, I am the ${scenario?.role ?? "stakeholder"} for this scenario.`,
-      scenarioBrief ? scenarioBrief : `Context: ${scenario?.name ?? "Assessment conversation"}.`,
-      "Please start by asking me 1-2 questions to understand priorities before pitching any solution.",
-    ].join(" ");
+    const opener = buildNaturalOpener(
+      scenario?.role ?? "stakeholder",
+      scenario?.name ?? "Assessment conversation",
+      scenario?.context
+    );
 
     const { error: openerErr } = await supabaseServer
       .from("simulation_messages")

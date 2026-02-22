@@ -18,6 +18,15 @@ type ScenarioMeta = {
   context: Record<string, unknown> | null;
 };
 
+function contextLine(label: string, value: unknown) {
+  if (!value) return null;
+  return (
+    <li>
+      <strong>{label}:</strong> {String(value)}
+    </li>
+  );
+}
+
 export default function SimulationAttemptPage() {
   const params = useParams<{ attemptId: string }>();
   const router = useRouter();
@@ -107,15 +116,22 @@ export default function SimulationAttemptPage() {
 
       {scenario ? (
         <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12, background: "#fafafa" }}>
-          <strong>Scenario context</strong>
+          <strong>Scenario brief</strong>
           <div style={{ marginTop: 6 }}>
             <div><strong>Scenario:</strong> {scenario.name}</div>
-            <div><strong>Role:</strong> {scenario.role}</div>
+            <div><strong>Who you are speaking to:</strong> {scenario.role}</div>
             {scenario.context ? (
-              <pre style={{ whiteSpace: "pre-wrap", marginTop: 8, fontSize: 13 }}>
-                {JSON.stringify(scenario.context, null, 2)}
-              </pre>
+              <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+                {contextLine("Company", scenario.context.company)}
+                {contextLine("Industry", scenario.context.industry)}
+                {contextLine("Current challenge", scenario.context.challenge)}
+                {contextLine("Desired outcome", scenario.context.goal)}
+                {contextLine("Stake/pressure", scenario.context.stakes)}
+              </ul>
             ) : null}
+            <p style={{ marginTop: 8, opacity: 0.8 }}>
+              Goal: lead with discovery, then frame business value clearly.
+            </p>
           </div>
         </div>
       ) : null}
