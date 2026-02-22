@@ -26,6 +26,34 @@ type Job = {
   last_error: string | null;
 };
 
+const INDICATORS_BY_DOMAIN: Record<string, string[]> = {
+  Curiosity: [
+    "Asks focused discovery questions",
+    "Explores root cause before solutioning",
+    "Clarifies constraints and success criteria",
+  ],
+  "Value Discovery": [
+    "Connects problem to measurable business outcomes",
+    "Quantifies impact or ROI hypothesis",
+    "Links technical capability to stakeholder value",
+  ],
+  "Executive Presence": [
+    "Communicates with concise structure",
+    "Handles challenge calmly and confidently",
+    "Uses clear business language over jargon",
+  ],
+  Influence: [
+    "Aligns stakeholders around next step",
+    "Reframes objections into decision criteria",
+    "Builds momentum with clear recommendation",
+  ],
+  "Commercial Ownership": [
+    "Drives conversation toward commercial outcomes",
+    "Surfaces risk, urgency, and trade-offs",
+    "Secures concrete next-step commitment",
+  ],
+};
+
 export default function SimulationResultsPage() {
   const params = useParams<{ attemptId: string }>();
   const search = useSearchParams();
@@ -100,14 +128,27 @@ export default function SimulationResultsPage() {
         <p style={{ opacity: 0.7 }}>No scores yet.</p>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
-          {scores.map((s) => (
-            <div key={s.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 10 }}>
-              <strong>{s.domain}</strong>
-              <div>Score: {s.score} / 5</div>
-              <div>Maturity: {s.maturity}</div>
-              <div>Evidence count: {s.evidence_count}</div>
-            </div>
-          ))}
+          {scores.map((s) => {
+            const indicators = INDICATORS_BY_DOMAIN[s.domain] ?? [];
+            const domainEvidence = groupedEvidence[s.domain] ?? [];
+            const matched = indicators.filter((i) =>
+              domainEvidence.some((e) =>
+                `${e.indicator} ${e.notes}`.toLowerCase().includes(i.toLowerCase().slice(0, 18))
+              )
+            );
+            const missed = indicators.filter((i) => !matched.includes(i));
+
+            return (
+              <div key={s.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 10 }}>
+                <strong>{s.domain}</strong>
+                <div>Score: {s.score} / 5</div>
+                <div>Maturity: {s.maturity}</div>
+                <div>Evidence count: {s.evidence_count}</div>
+                {matched.length > 0 ? <div style={{ marginTop: 6 }}>Matched: {matched.join("; ")}</div> : null}
+                {missed.length > 0 ? <div style={{ marginTop: 4, opacity: 0.85 }}>Missing signals: {missed.join("; ")}</div> : null}
+              </div>
+            );
+          })}
         </div>
       )}
 

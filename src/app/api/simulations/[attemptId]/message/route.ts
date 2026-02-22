@@ -4,6 +4,26 @@ import { openai } from "@/lib/openai";
 
 type Ctx = { params: Promise<{ attemptId: string }> };
 
+function getStage(userTurnCount: number) {
+  if (userTurnCount <= 1) return "discovery";
+  if (userTurnCount <= 3) return "value_framing";
+  if (userTurnCount <= 5) return "objection_handling";
+  return "close_next_step";
+}
+
+function stageInstruction(stage: string) {
+  switch (stage) {
+    case "discovery":
+      return "Focus on discovery. Ask for context, priorities, and constraints. Do not accept generic claims.";
+    case "value_framing":
+      return "Pressure-test value framing. Ask for measurable business impact, timeline, and success metrics.";
+    case "objection_handling":
+      return "Raise realistic executive objections (risk, adoption, cost, proof) and test clarity and confidence.";
+    default:
+      return "Push for a concrete next step: decision process, stakeholders, timeline, and proof plan.";
+  }
+}
+
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const { attemptId } = await ctx.params;
@@ -35,10 +55,7 @@ export async function POST(req: Request, ctx: Ctx) {
       .single();
 
     if (attemptErr || !attempt?.scenario_id) {
-      return NextResponse.json(
-        { error: attemptErr?.message ?? "Missing scenario" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: attemptErr?.message ?? "Missing scenario" }, { status: 400 });
     }
 
     const { data: scenario, error: scenarioErr } = await supabaseServer
@@ -48,10 +65,7 @@ export async function POST(req: Request, ctx: Ctx) {
       .single();
 
     if (scenarioErr || !scenario) {
-      return NextResponse.json(
-        { error: scenarioErr?.message ?? "Scenario not found" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: scenarioErr?.message ?? "Scenario not found" }, { status: 400 });
     }
 
     const { data: history, error: histErr } = await supabaseServer
@@ -59,20 +73,26 @@ export async function POST(req: Request, ctx: Ctx) {
       .select("sender, content")
       .eq("attempt_id", attemptId)
       .order("created_at", { ascending: true })
-      .limit(20);
+      .limit(30);
 
     if (histErr) {
       return NextResponse.json({ error: histErr.message }, { status: 400 });
     }
 
+    const userTurnCount = (history ?? []).filter((m) => m.sender === "user").length;
+    const stage = getStage(userTurnCount);
+
     const system = [
       `You are role-playing as the customer's ${scenario.role} in a presales meeting.`,
       `Scenario: ${scenario.name}.`,
       `Context (JSON): ${JSON.stringify(scenario.context ?? {})}.`,
+      `Current stage: ${stage}.`,
+      `Stage objective: ${stageInstruction(stage)}.`,
       "Rules:",
       `- Stay in character as the ${scenario.role}.`,
-      "- Be realistic, slightly challenging, and concise.",
-      "- Ask follow-up questions to test value framing, clarity, and confidence.",
+      "- Be realistic, slightly challenging, concise, and business-oriented.",
+      "- Keep responses to max 3-4 sentences unless candidate asks for detail.",
+      "- Ask one sharp follow-up question most turns.",
       "- Do not mention you are an AI or that this is a simulation.",
     ].join("\n");
 
@@ -87,7 +107,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
       messages,
-      temperature: 0.7,
+      temperature: 0.6,
       max_tokens: 220,
     });
 
@@ -103,7 +123,7 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: asstErr.message }, { status: 400 });
     }
 
-    return NextResponse.json({ assistant: assistantContent });
+    return NextResponse.json({ assistant: assistantContent, stage });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Invalid request";
     return NextResponse.json({ error: message }, { status: 400 });

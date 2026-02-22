@@ -2,7 +2,7 @@ import { z } from "zod";
 import { openai } from "../openai";
 import { supabase } from "../supabase";
 import { computeScores } from "../scoring/computeScores";
-import { DOMAINS, type Domain } from "../scoring/rubric";
+import { DOMAINS, INDICATORS_BY_DOMAIN, type Domain } from "../scoring/rubric";
 
 const EvidenceSchema = z.object({
   domain: z.string().min(1),
@@ -40,7 +40,11 @@ function mapToDomain(raw: string): Domain {
   return "Curiosity";
 }
 
-function normalizeEvidencePayload(input: unknown, allowedUserMsgIndices: Set<number>) {
+function normalizeEvidencePayload(
+  input: unknown,
+  allowedUserMsgIndices: Set<number>,
+  candidateTurns: Array<{ msg_index: number; content: string }>
+) {
   const toArray = (v: unknown): unknown[] => {
     if (Array.isArray(v)) return v;
     if (v && typeof v === "object") {
@@ -81,10 +85,18 @@ function normalizeEvidencePayload(input: unknown, allowedUserMsgIndices: Set<num
 
     const notes = String(o.notes ?? o.rationale ?? "").trim();
 
-    const safeStrength = excerpts.length === 0 && strength === "strong" ? "moderate" : strength;
-    const safeConfidence = excerpts.length === 0 ? Math.min(confidence, 0.6) : confidence;
+    const fallbackTurn = candidateTurns[candidateTurns.length - 1];
+    const anchoredExcerpts =
+      excerpts.length > 0
+        ? excerpts
+        : fallbackTurn
+          ? [{ text: fallbackTurn.content.slice(0, 220), msg_index: fallbackTurn.msg_index }]
+          : [];
 
-    return { domain, indicator, strength: safeStrength, confidence: safeConfidence, excerpts, notes };
+    const safeStrength = anchoredExcerpts.length === 0 && strength === "strong" ? "moderate" : strength;
+    const safeConfidence = anchoredExcerpts.length === 0 ? Math.min(confidence, 0.6) : confidence;
+
+    return { domain, indicator, strength: safeStrength, confidence: safeConfidence, excerpts: anchoredExcerpts, notes };
   });
 }
 
@@ -161,6 +173,7 @@ export async function scoreSimulation(payload: JobPayload) {
     "No markdown, no prose.",
     "Each evidence item must include: domain, indicator, strength (strong|moderate|weak), confidence (0..1), excerpts[], notes.",
     `Allowed domains only: ${DOMAINS.join(", ")}.`,
+    `Use only these indicators per domain: ${JSON.stringify(INDICATORS_BY_DOMAIN)}.`,
     "Every evidence item must reference at least one candidate excerpt with valid msg_index from candidate turns.",
     "Be conservative: for brief or generic candidate answers, use weak/moderate evidence, not strong.",
     `Scenario: ${JSON.stringify(scenario)}`,
@@ -187,7 +200,7 @@ export async function scoreSimulation(payload: JobPayload) {
     parsed = { evidence: [] };
   }
 
-  const normalized = normalizeEvidencePayload(parsed, candidateMsgIndices);
+  const normalized = normalizeEvidencePayload(parsed, candidateMsgIndices, candidateTurns);
   const evidenceList = EvidenceListSchema.parse(normalized);
 
   await supabase.from("evidence").delete().eq("attempt_id", attemptId);
