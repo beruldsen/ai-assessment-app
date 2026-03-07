@@ -6,13 +6,15 @@ export type AssessmentQuestion = {
   text: string;
 };
 
-type CapabilityBlock = {
+export type CapabilityBlock = {
+  id: string;
   capability: string;
   behaviors: string[];
 };
 
 export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
   {
+    id: "technical_credibility_learning",
     capability: "Technical Credibility & Continuous Learning",
     behaviors: [
       "Demonstrates strong technical understanding of the solution, architecture, and ecosystem.",
@@ -25,6 +27,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "business_value_cocreation",
     capability: "Business Value Discovery & Co-Creation",
     behaviors: [
       "Uses questioning to explore the customer’s business and technical environment.",
@@ -38,6 +41,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "influence_collaboration",
     capability: "Customer & Internal Influence / Collaboration",
     behaviors: [
       "Builds strong collaborative relationships across internal teams and customer stakeholders.",
@@ -49,6 +53,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "executive_communication_presence",
     capability: "Executive Communication, Storytelling & Presence",
     behaviors: [
       "Simplifies complex technical ideas for different audiences.",
@@ -60,6 +65,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "strategic_account_thinking",
     capability: "Strategic Account Thinking",
     behaviors: [
       "Understands the customer’s strategic priorities and business drivers.",
@@ -71,6 +77,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "commercial_acumen_value_justification",
     capability: "Commercial Acumen & Value Justification",
     behaviors: [
       "Understands the financial and commercial drivers behind customer decisions.",
@@ -82,6 +89,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "ownership_accountability_value_realization",
     capability: "Ownership, Accountability & Value Realization",
     behaviors: [
       "Takes ownership for progressing opportunities and delivering outcomes.",
@@ -94,6 +102,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
     ],
   },
   {
+    id: "ai_fluency_human_trust",
     capability: "AI Fluency & Human Trust Advantage",
     behaviors: [
       "Uses AI tools to enhance research, preparation, and analysis.",
@@ -107,19 +116,8 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
   },
 ];
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 40);
-}
-
-export const ASSESSMENT_360_QUESTIONS: AssessmentQuestion[] = ASSESSMENT_180_CAPABILITIES.flatMap((cap) =>
-  cap.behaviors.map((behavior, idx) => ({
-    id: `${slugify(cap.capability)}_${idx + 1}`,
-    capability: cap.capability,
-    text: behavior,
-  }))
-);
+export const ASSESSMENT_360_QUESTIONS: AssessmentQuestion[] = ASSESSMENT_180_CAPABILITIES.map((cap) => ({
+  id: cap.id,
+  capability: cap.capability,
+  text: `Overall rating for ${cap.capability}`,
+}));
