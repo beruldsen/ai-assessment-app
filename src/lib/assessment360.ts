@@ -76,18 +76,7 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
       "Plans engagement with stakeholders early in the opportunity lifecycle.",
     ],
   },
-  {
-    id: "commercial_acumen_value_justification",
-    capability: "Commercial Acumen & Value Justification",
-    behaviors: [
-      "Understands the financial and commercial drivers behind customer decisions.",
-      "Connects technical solutions to financial or business outcomes.",
-      "Articulates ROI, cost implications, and value trade-offs.",
-      "Supports the sales team in building a compelling business case.",
-      "Demonstrates awareness of pricing, procurement, and risk considerations.",
-      "Engages comfortably in value-focused discussions with customers.",
-    ],
-  },
+
   {
     id: "ownership_accountability_value_realization",
     capability: "Ownership, Accountability & Value Realization",
