@@ -14,19 +14,6 @@ export type CapabilityBlock = {
 
 export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
   {
-    id: "technical_credibility_learning",
-    capability: "Technical Credibility & Continuous Learning",
-    behaviors: [
-      "Demonstrates strong technical understanding of the solution, architecture, and ecosystem.",
-      "Applies technical expertise to solve complex customer challenges.",
-      "Connects technical capabilities to real customer environments and use cases.",
-      "Earns trust with technical stakeholders through clarity, depth, and accuracy.",
-      "Stays current on emerging technologies, architectures, and industry developments.",
-      "Seeks learning opportunities from customers, colleagues, and experience.",
-      "Demonstrates curiosity about how customers use technology in real-world scenarios.",
-    ],
-  },
-  {
     id: "business_value_cocreation",
     capability: "Business Value Discovery & Co-Creation",
     behaviors: [
@@ -76,7 +63,6 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
       "Plans engagement with stakeholders early in the opportunity lifecycle.",
     ],
   },
-
   {
     id: "ownership_accountability_value_realization",
     capability: "Ownership, Accountability & Value Realization",
@@ -101,6 +87,19 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
       "Maintains empathy, credibility, and trust in customer interactions.",
       "Balances AI insights with human context and judgment.",
       "Demonstrates responsible and ethical use of AI tools.",
+    ],
+  },
+  {
+    id: "technical_credibility_learning",
+    capability: "Technical Credibility & Continuous Learning",
+    behaviors: [
+      "Demonstrates strong technical understanding of the solution, architecture, and ecosystem.",
+      "Applies technical expertise to solve complex customer challenges.",
+      "Connects technical capabilities to real customer environments and use cases.",
+      "Earns trust with technical stakeholders through clarity, depth, and accuracy.",
+      "Stays current on emerging technologies, architectures, and industry developments.",
+      "Seeks learning opportunities from customers, colleagues, and experience.",
+      "Demonstrates curiosity about how customers use technology in real-world scenarios.",
     ],
   },
 ];
