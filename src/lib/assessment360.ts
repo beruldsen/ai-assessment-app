@@ -13,9 +13,9 @@ export const ASSESSMENT_360_QUESTIONS: AssessmentQuestion[] = [
     text: "Asks focused discovery questions to uncover root causes.",
   },
   {
-    id: "value_outcomes",
-    dimension: "Value Discovery",
-    text: "Connects technical recommendations to measurable business outcomes.",
+    id: "value_cocreation",
+    dimension: "Business Value Discovery & Co-Creation",
+    text: "Co-creates measurable business outcomes with the customer (not just solution fit).",
   },
   {
     id: "presence_executive",
