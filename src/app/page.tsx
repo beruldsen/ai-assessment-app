@@ -27,7 +27,7 @@ export default function Home() {
       <p>{status}</p>
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
         <Link href="/simulation">Go to Simulation</Link>
-        <Link href="/assessment360">Go to 360 Assessment (MVP)</Link>
+        <Link href="/assessment360">Go to 180° Assessment (MVP)</Link>
       </div>
     </main>
   );

@@ -140,7 +140,7 @@ export default function Assessment360CyclePage() {
 
   return (
     <main className="page">
-      <h1 className="title">360 Assessment Cycle</h1>
+      <h1 className="title">Future SE 180° Assessment Cycle</h1>
       <p className="subtitle">
         {data ? `${data.cycle.title} · ${data.cycle.participant_name}` : "Loading..."}
       </p>
@@ -154,27 +154,35 @@ export default function Assessment360CyclePage() {
       </section>
 
       <section className="card grid" style={{ marginBottom: 12 }}>
-        {ASSESSMENT_360_QUESTIONS.map((q, idx) => (
-          <div key={q.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
-            <div style={{ fontWeight: 600 }}>{idx + 1}. {q.text}</div>
-            <div className="meta" style={{ marginBottom: 6 }}>{q.dimension}</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <select
-                className="select"
-                value={scores[q.id] ?? ""}
-                onChange={(e) => setScores((s) => ({ ...s, [q.id]: Number(e.target.value) }))}
-              >
-                <option value="">Score (1-5)</option>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-              <input
-                className="input"
-                value={comments[q.id] ?? ""}
-                onChange={(e) => setComments((c) => ({ ...c, [q.id]: e.target.value }))}
-                placeholder="Optional evidence comment"
-              />
+        {Array.from(new Map(ASSESSMENT_360_QUESTIONS.map((q) => [q.capability, q])).keys()).map((capability) => (
+          <div key={capability} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
+            <h3 style={{ margin: "0 0 6px" }}>{capability}</h3>
+            <div className="grid">
+              {ASSESSMENT_360_QUESTIONS.filter((q) => q.capability === capability).map((q, idx) => (
+                <div key={q.id} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10 }}>
+                  <div style={{ fontWeight: 600 }}>{idx + 1}. {q.text}</div>
+                  <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                    <select
+                      className="select"
+                      value={scores[q.id] ?? ""}
+                      onChange={(e) => setScores((s) => ({ ...s, [q.id]: Number(e.target.value) }))}
+                    >
+                      <option value="">Score (1-5)</option>
+                      <option value="1">1 - Rarely demonstrated</option>
+                      <option value="2">2 - Occasionally demonstrated</option>
+                      <option value="3">3 - Consistently demonstrated</option>
+                      <option value="4">4 - Strong capability / frequently demonstrated</option>
+                      <option value="5">5 - Role model / consistently drives impact</option>
+                    </select>
+                    <input
+                      className="input"
+                      value={comments[q.id] ?? ""}
+                      onChange={(e) => setComments((c) => ({ ...c, [q.id]: e.target.value }))}
+                      placeholder="Optional evidence comment"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}

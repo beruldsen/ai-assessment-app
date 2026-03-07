@@ -43,7 +43,7 @@ export async function POST(req: Request, ctx: Ctx) {
       cycle_id: cycleId,
       rater_type: body.raterType,
       question_id: q.id,
-      dimension: q.dimension,
+      dimension: q.capability,
       question_text: q.text,
       score: Math.round(a.score),
       comment: a.comment?.trim() ? a.comment.trim() : null,
