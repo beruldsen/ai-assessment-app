@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
@@ -24,6 +25,10 @@ export default function Home() {
     <main style={{ padding: 24 }}>
       <h1>Presales Assessment</h1>
       <p>{status}</p>
+      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+        <Link href="/simulation">Go to Simulation</Link>
+        <Link href="/assessment360">Go to 360 Assessment (MVP)</Link>
+      </div>
     </main>
   );
 }
