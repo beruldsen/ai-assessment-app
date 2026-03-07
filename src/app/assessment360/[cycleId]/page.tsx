@@ -75,6 +75,34 @@ export default function Assessment360CyclePage() {
     return { done, total: ASSESSMENT_360_QUESTIONS.length };
   }, [scores]);
 
+  const advancedSummary = useMemo(() => {
+    if (!data) return null;
+
+    const byDimension = new Map<string, { self: number[]; manager: number[]; all: number[] }>();
+    for (const r of data.responses) {
+      const bucket = byDimension.get(r.dimension) ?? { self: [], manager: [], all: [] };
+      bucket.all.push(r.score);
+      if (r.rater_type === "self") bucket.self.push(r.score);
+      if (r.rater_type === "manager") bucket.manager.push(r.score);
+      byDimension.set(r.dimension, bucket);
+    }
+
+    const avg = (arr: number[]) => (arr.length ? Number((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null);
+
+    const rows = Array.from(byDimension.entries()).map(([dimension, vals]) => {
+      const selfAvg = avg(vals.self);
+      const managerAvg = avg(vals.manager);
+      const overallAvg = avg(vals.all) ?? 0;
+      const gap = selfAvg !== null && managerAvg !== null ? Number((selfAvg - managerAvg).toFixed(2)) : null;
+      return { dimension, selfAvg, managerAvg, overallAvg, gap };
+    });
+
+    const strengths = [...rows].sort((a, b) => b.overallAvg - a.overallAvg).slice(0, 3);
+    const development = [...rows].sort((a, b) => a.overallAvg - b.overallAvg).slice(0, 3);
+
+    return { rows, strengths, development };
+  }, [data]);
+
   async function saveRatings() {
     const answers = ASSESSMENT_360_QUESTIONS
       .map((q) => ({
@@ -173,15 +201,49 @@ export default function Assessment360CyclePage() {
                 </p>
               ))}
             </div>
+
             <div>
-              <strong>Average by dimension</strong>
-              {data.summary.dimensionAverages.length === 0 ? (
+              <strong>Self vs Manager gap by capability</strong>
+              {!advancedSummary || advancedSummary.rows.length === 0 ? (
                 <p className="meta">No ratings yet.</p>
-              ) : data.summary.dimensionAverages.map((d) => (
-                <p key={d.dimension} className="meta" style={{ margin: "6px 0" }}>
-                  {d.dimension}: {d.avgScore} / 5
-                </p>
-              ))}
+              ) : (
+                <div className="grid" style={{ marginTop: 8 }}>
+                  {advancedSummary.rows.map((r) => (
+                    <div key={r.dimension} className="meta">
+                      <strong>{r.dimension}</strong>
+                      <div>
+                        self: {r.selfAvg ?? "-"} · manager: {r.managerAvg ?? "-"} · gap: {r.gap ?? "-"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <strong>Top 3 strengths</strong>
+              {!advancedSummary || advancedSummary.strengths.length === 0 ? (
+                <p className="meta">No ratings yet.</p>
+              ) : (
+                <ol className="meta" style={{ marginTop: 8 }}>
+                  {advancedSummary.strengths.map((s) => (
+                    <li key={`s-${s.dimension}`}>{s.dimension} ({s.overallAvg}/5)</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            <div>
+              <strong>Top 3 development priorities</strong>
+              {!advancedSummary || advancedSummary.development.length === 0 ? (
+                <p className="meta">No ratings yet.</p>
+              ) : (
+                <ol className="meta" style={{ marginTop: 8 }}>
+                  {advancedSummary.development.map((d) => (
+                    <li key={`d-${d.dimension}`}>{d.dimension} ({d.overallAvg}/5)</li>
+                  ))}
+                </ol>
+              )}
             </div>
           </div>
         )}
