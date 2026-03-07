@@ -101,7 +101,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const messages = [
       { role: "system" as const, content: system },
       ...((history ?? []).map((m) => ({
-        role: (m.sender === "user" ? "user" : "assistant") as const,
+        role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
         content: m.content,
       })) ?? []),
     ];

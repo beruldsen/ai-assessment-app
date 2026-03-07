@@ -218,7 +218,13 @@ export async function scoreSimulation(payload: JobPayload) {
   if (scenarioRes.error || !scenarioRes.data) throw new Error(scenarioRes.error?.message ?? "Scenario not found");
   if (messagesRes.error || !messagesRes.data) throw new Error(messagesRes.error.message);
 
-  const scenario = (scenarioRes.data as { simulation_scenarios: { name: string; role: string; context: unknown } | null }).simulation_scenarios;
+  const scenarioRel = (scenarioRes.data as {
+    simulation_scenarios:
+      | { name: string; role: string; context: unknown }
+      | Array<{ name: string; role: string; context: unknown }>
+      | null;
+  }).simulation_scenarios;
+  const scenario = Array.isArray(scenarioRel) ? (scenarioRel[0] ?? null) : scenarioRel;
   const messages = messagesRes.data;
 
   const candidateTurns = messages
