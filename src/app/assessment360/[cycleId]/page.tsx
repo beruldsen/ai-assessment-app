@@ -174,8 +174,9 @@ export default function Assessment360CyclePage() {
       const selfAvg = avg(vals.self);
       const managerAvg = avg(vals.manager);
       const overallAvg = avg(vals.all) ?? 0;
+      const averageScore = selfAvg !== null && managerAvg !== null ? Number(((selfAvg + managerAvg) / 2).toFixed(2)) : null;
       const gap = selfAvg !== null && managerAvg !== null ? Number((selfAvg - managerAvg).toFixed(2)) : null;
-      return { dimension, selfAvg, managerAvg, overallAvg, gap, absGap: gap === null ? 0 : Math.abs(gap) };
+      return { dimension, selfAvg, managerAvg, overallAvg, averageScore, gap, absGap: gap === null ? 0 : Math.abs(gap) };
     });
 
     const strengths = [...rows].sort((a, b) => b.overallAvg - a.overallAvg).slice(0, 3);
@@ -211,17 +212,37 @@ export default function Assessment360CyclePage() {
   }, [advancedSummary]);
 
   const commentsByDimension = useMemo(() => {
-    if (!data) return [] as Array<{ dimension: string; self: string[]; manager: string[] }>;
+    if (!data) return [] as Array<{ dimension: string; self: string[]; manager: string[]; selfScore: number | null; managerScore: number | null; gap: number | null; averageScore: number | null }>;
     const map = new Map<string, { self: string[]; manager: string[] }>();
     for (const r of data.responses) {
-      if (!r.comment?.trim()) continue;
       const bucket = map.get(r.dimension) ?? { self: [], manager: [] };
-      if (r.rater_type === "self") bucket.self.push(r.comment.trim());
-      if (r.rater_type === "manager") bucket.manager.push(r.comment.trim());
+      if (r.comment?.trim()) {
+        if (r.rater_type === "self") bucket.self.push(r.comment.trim());
+        if (r.rater_type === "manager") bucket.manager.push(r.comment.trim());
+      }
       map.set(r.dimension, bucket);
     }
-    return Array.from(map.entries()).map(([dimension, v]) => ({ dimension, self: v.self, manager: v.manager }));
-  }, [data]);
+
+    const scoreMap = new Map((advancedSummary?.rows ?? []).map((r) => [r.dimension, r]));
+
+    return Array.from(map.entries()).map(([dimension, v]) => {
+      const score = scoreMap.get(dimension);
+      return {
+        dimension,
+        self: v.self,
+        manager: v.manager,
+        selfScore: score?.selfAvg ?? null,
+        managerScore: score?.managerAvg ?? null,
+        gap: score?.gap ?? null,
+        averageScore: score?.averageScore ?? null,
+      };
+    });
+  }, [data, advancedSummary]);
+
+  function formatGap(gap: number | null) {
+    if (gap === null) return "-";
+    return gap > 0 ? `+${gap}` : `${gap}`;
+  }
 
   async function saveRatings(mode: "draft" | "final") {
     const answers = ASSESSMENT_360_QUESTIONS
@@ -389,7 +410,8 @@ export default function Assessment360CyclePage() {
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Capability</th>
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Self</th>
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Manager</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap</th>
+                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Average Score</th>
+                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap (Self - Manager)</th>
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Status</th>
                   </tr>
                 </thead>
@@ -402,7 +424,8 @@ export default function Assessment360CyclePage() {
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.dimension}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.selfAvg ?? "-"}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.managerAvg ?? "-"}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.gap ?? "-"}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.averageScore ?? "-"}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{formatGap(r.gap)}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}><span className={badgeClass}>{badge}</span></td>
                       </tr>
                     );
@@ -423,8 +446,14 @@ export default function Assessment360CyclePage() {
             {commentsByDimension.map((c) => (
               <div key={`comments-${c.dimension}`} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10 }}>
                 <strong>{c.dimension}</strong>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Self:</strong> {c.self.length ? c.self.join(" | ") : "No comment"}</div>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Manager:</strong> {c.manager.length ? c.manager.join(" | ") : "No comment"}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Manager Score:</strong> {c.managerScore ?? "-"}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Self Score:</strong> {c.selfScore ?? "-"}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Average Score:</strong> {c.averageScore ?? "-"}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Gap (Self - Manager):</strong> {formatGap(c.gap)}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Comments:</strong> {[
+                  c.manager.length ? `Manager: ${c.manager.join(" | ")}` : "Manager: No comment",
+                  c.self.length ? `Self: ${c.self.join(" | ")}` : "Self: No comment",
+                ].join("  •  ")}</div>
               </div>
             ))}
           </div>
