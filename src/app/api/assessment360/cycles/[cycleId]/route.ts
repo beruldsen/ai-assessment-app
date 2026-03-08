@@ -10,9 +10,11 @@ export async function GET(req: Request, ctx: Ctx) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const hasParticipants = await cycleHasParticipants(cycleId);
+  let viewerRole: "self" | "manager" | "admin" | null = null;
   if (hasParticipants) {
     const role = await getCycleRole(cycleId, user.email);
     if (!role) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    viewerRole = role;
   }
 
   const [cycleRes, responsesRes, submissionsRes, actionPlanRes] = await Promise.all([
@@ -76,6 +78,7 @@ export async function GET(req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     cycle: cycleRes.data,
+    viewerRole,
     responses,
     submissions: submissionsRes.data ?? [],
     actionPlan: actionPlanRes.data ?? null,
