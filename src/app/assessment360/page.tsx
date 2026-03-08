@@ -30,6 +30,7 @@ export default function Assessment360HomePage() {
   const [managerEmail, setManagerEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [createdLinks, setCreatedLinks] = useState<{ login: string; self: string; manager: string } | null>(null);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -54,7 +55,8 @@ export default function Assessment360HomePage() {
   async function createCycleAsAdmin() {
     if (!title.trim() || !selfName.trim() || !selfEmail.trim() || !managerName.trim() || !managerEmail.trim()) return;
     setBusy(true);
-    setStatus("creating + sending links...");
+    setCreatedLinks(null);
+    setStatus("creating cycle...");
 
     const res = await fetch("/api/assessment360/cycles", {
       method: "POST",
@@ -69,8 +71,8 @@ export default function Assessment360HomePage() {
       return;
     }
 
-    const inviteSummary = (json.invites ?? []).map((x: { role: string; invite_status: string }) => `${x.role}: ${x.invite_status}`).join(" · ");
-    setStatus(`Created. Invite status -> ${inviteSummary}`);
+    setStatus(json.message ?? "Cycle created. Share login and cycle links manually.");
+    if (json.links) setCreatedLinks(json.links);
     setBusy(false);
     await loadCycles();
     router.push(`/assessment360/${json.cycleId}`);
@@ -79,7 +81,7 @@ export default function Assessment360HomePage() {
   return (
     <main className="page">
       <h1 className="title">Future SE 180° Assessment</h1>
-      <p className="subtitle">Admin-managed self + manager assignments with invite/link tracking.</p>
+      <p className="subtitle">Admin-managed self + manager assignments (manual link sharing mode).</p>
 
       {isAdmin ? (
         <section className="card grid" style={{ marginBottom: 14 }}>
@@ -105,9 +107,16 @@ export default function Assessment360HomePage() {
           </label>
           <div>
             <button className="button" onClick={createCycleAsAdmin} disabled={busy || !title.trim() || !selfName.trim() || !selfEmail.trim() || !managerName.trim() || !managerEmail.trim()}>
-              Create cycle + send links
+              Create cycle
             </button>
             {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
+            {createdLinks ? (
+              <div className="meta" style={{ marginTop: 8 }}>
+                <div>Login URL: {createdLinks.login}</div>
+                <div>Cycle URL (self): {createdLinks.self}</div>
+                <div>Cycle URL (manager): {createdLinks.manager}</div>
+              </div>
+            ) : null}
           </div>
         </section>
       ) : (

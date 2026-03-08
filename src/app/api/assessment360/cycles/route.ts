@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getRequestUser, isAssessmentAdmin } from "@/lib/assessmentAccess";
 
@@ -12,18 +11,6 @@ type ParticipantRow = {
   invite_sent_at: string | null;
   invite_error: string | null;
 };
-
-async function sendMagicLink(email: string, redirectTo?: string) {
-  const authClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-  const { error } = await authClient.auth.signInWithOtp({
-    email,
-    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-  });
-  return { ok: !error, error: error?.message ?? null };
-}
 
 export async function GET(req: Request) {
   const user = await getRequestUser(req);
@@ -101,30 +88,43 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const participantsBase = [
-    { cycle_id: data.id, role: "self" as const, name: body.selfName.trim(), email: selfEmail },
-    { cycle_id: data.id, role: "manager" as const, name: body.managerName.trim(), email: managerEmail },
+  const participants: ParticipantRow[] = [
+    {
+      cycle_id: data.id,
+      role: "self",
+      name: body.selfName.trim(),
+      email: selfEmail,
+      invite_status: "pending",
+      invite_sent_at: null,
+      invite_error: null,
+    },
+    {
+      cycle_id: data.id,
+      role: "manager",
+      name: body.managerName.trim(),
+      email: managerEmail,
+      invite_status: "pending",
+      invite_sent_at: null,
+      invite_error: null,
+    },
   ];
-
-  const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? undefined;
-  const redirectTo = origin ? `${origin}/assessment360/${data.id}` : undefined;
-
-  const inviteResults = await Promise.all(
-    participantsBase.map(async (p) => {
-      const sent = await sendMagicLink(p.email, redirectTo);
-      return {
-        ...p,
-        invite_status: sent.ok ? "sent" : "failed",
-        invite_sent_at: sent.ok ? new Date().toISOString() : null,
-        invite_error: sent.error,
-      } satisfies ParticipantRow;
-    }),
-  );
 
   const { error: partErr } = await supabaseServer
     .from("assessment360_cycle_participants")
-    .upsert(inviteResults, { onConflict: "cycle_id,email" });
+    .upsert(participants, { onConflict: "cycle_id,email" });
 
   if (partErr) return NextResponse.json({ error: partErr.message }, { status: 500 });
-  return NextResponse.json({ cycleId: data.id, invites: inviteResults });
+
+  const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const cycleUrl = `${origin}/assessment360/${data.id}`;
+
+  return NextResponse.json({
+    cycleId: data.id,
+    links: {
+      self: cycleUrl,
+      manager: cycleUrl,
+      login: `${origin}/login`,
+    },
+    message: "Cycle created. Invite sending is disabled; share login + cycle link manually.",
+  });
 }
