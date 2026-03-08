@@ -37,6 +37,8 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
       "Encourages alignment on priorities, actions, and next steps.",
       "Helps resolve conflicting perspectives between stakeholders.",
       "Facilitates productive discussions that move opportunities forward.",
+      "Takes ownership for progressing opportunities and delivering outcomes.",
+      "Takes initiative to remove obstacles to move opportunities forward.",
     ],
   },
   {
@@ -61,19 +63,6 @@ export const ASSESSMENT_180_CAPABILITIES: CapabilityBlock[] = [
       "Contributes ideas that shape the account strategy.",
       "Connects short-term activities to long-term account outcomes.",
       "Plans engagement with stakeholders early in the opportunity lifecycle.",
-    ],
-  },
-  {
-    id: "ownership_accountability_value_realization",
-    capability: "Ownership, Accountability & Value Realization",
-    behaviors: [
-      "Takes ownership for progressing opportunities and delivering outcomes.",
-      "Follows through reliably on commitments across teams.",
-      "Takes initiative to remove obstacles or move opportunities forward.",
-      "Considers adoption, usage, and long-term value during solution design.",
-      "Links solutions to measurable business outcomes and success metrics.",
-      "Helps customers understand how value will be realized and sustained.",
-      "Supports long-term customer success, expansion opportunities, and renewals.",
     ],
   },
   {

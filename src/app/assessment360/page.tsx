@@ -55,7 +55,7 @@ export default function Assessment360HomePage() {
   return (
     <main className="page">
       <h1 className="title">Future SE 180° Assessment (MVP)</h1>
-      <p className="subtitle">Self + manager ratings, based on 8 capability areas and observable behaviours.</p>
+      <p className="subtitle">Self + manager ratings, based on 7 capability areas and observable behaviours.</p>
 
       <section className="card grid" style={{ marginBottom: 14 }}>
         <label>
