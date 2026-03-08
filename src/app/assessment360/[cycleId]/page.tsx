@@ -5,6 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ASSESSMENT_180_CAPABILITIES, ASSESSMENT_360_QUESTIONS, type RaterType } from "@/lib/assessment360";
 
+type SubmissionState = {
+  rater_type: RaterType;
+  status: "draft" | "final_submitted";
+  submitted_at: string | null;
+  version: number;
+};
+
 type ApiResponse = {
   cycle: {
     id: string;
@@ -21,6 +28,15 @@ type ApiResponse = {
     score: number;
     comment: string | null;
   }>;
+  submissions: SubmissionState[];
+  actionPlan: {
+    strengths: string | null;
+    priorities: string | null;
+    plan_30: string | null;
+    plan_60: string | null;
+    plan_90: string | null;
+    updated_at: string;
+  } | null;
   summary: {
     raterAverages: Array<{ raterType: string; avgScore: number }>;
     dimensionAverages: Array<{ dimension: string; avgScore: number }>;
@@ -35,9 +51,16 @@ export default function Assessment360CyclePage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [saving, setSaving] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const [scores, setScores] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
+
+  const [strengthsText, setStrengthsText] = useState("");
+  const [prioritiesText, setPrioritiesText] = useState("");
+  const [plan30, setPlan30] = useState("");
+  const [plan60, setPlan60] = useState("");
+  const [plan90, setPlan90] = useState("");
 
   async function load() {
     setStatus("loading...");
@@ -48,7 +71,13 @@ export default function Assessment360CyclePage() {
       setStatus(`error: ${message}`);
       return;
     }
-    setData(json as ApiResponse);
+    const payload = json as ApiResponse;
+    setData(payload);
+    setStrengthsText(payload.actionPlan?.strengths ?? "");
+    setPrioritiesText(payload.actionPlan?.priorities ?? "");
+    setPlan30(payload.actionPlan?.plan_30 ?? "");
+    setPlan60(payload.actionPlan?.plan_60 ?? "");
+    setPlan90(payload.actionPlan?.plan_90 ?? "");
     setStatus("");
   }
 
@@ -69,6 +98,12 @@ export default function Assessment360CyclePage() {
     setScores(nextScores);
     setComments(nextComments);
   }, [tab, data]);
+
+  const currentSubmission = useMemo(
+    () => data?.submissions.find((s) => s.rater_type === tab) ?? null,
+    [data, tab],
+  );
+  const isFinalized = currentSubmission?.status === "final_submitted";
 
   const completion = useMemo(() => {
     const done = ASSESSMENT_360_QUESTIONS.filter((q) => Number(scores[q.id]) >= 1 && Number(scores[q.id]) <= 5).length;
@@ -103,7 +138,7 @@ export default function Assessment360CyclePage() {
     return { rows, strengths, development };
   }, [data]);
 
-  async function saveRatings() {
+  async function saveRatings(mode: "draft" | "final") {
     const answers = ASSESSMENT_360_QUESTIONS
       .map((q) => ({
         questionId: q.id,
@@ -118,12 +153,12 @@ export default function Assessment360CyclePage() {
     }
 
     setSaving(true);
-    setStatus("saving...");
+    setStatus(mode === "final" ? "finalizing..." : "saving draft...");
 
     const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ raterType: tab, answers }),
+      body: JSON.stringify({ raterType: tab, answers, mode }),
     });
 
     const json = await res.json();
@@ -135,7 +170,51 @@ export default function Assessment360CyclePage() {
 
     await load();
     setSaving(false);
-    setStatus(`Saved ${answers.length} ${tab} ratings.`);
+    setStatus(mode === "final" ? `Final submitted for ${tab}.` : `Saved ${answers.length} ${tab} ratings as draft.`);
+  }
+
+  async function reopenFinal() {
+    const answers = ASSESSMENT_360_QUESTIONS
+      .map((q) => ({
+        questionId: q.id,
+        score: Number(scores[q.id]),
+        comment: comments[q.id] ?? "",
+      }))
+      .filter((a) => Number.isFinite(a.score) && a.score >= 1 && a.score <= 5);
+
+    if (!answers.length) {
+      setStatus("Cannot reopen without existing answers loaded.");
+      return;
+    }
+
+    setSaving(true);
+    const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ raterType: tab, answers, mode: "draft", forceEditAfterFinal: true }),
+    });
+    const json = await res.json();
+    if (!res.ok) setStatus(`error: ${json.error ?? "failed to reopen"}`);
+    else setStatus(`${tab} reopened to draft.`);
+    setSaving(false);
+    await load();
+  }
+
+  async function saveActionPlan() {
+    setSavingPlan(true);
+    const res = await fetch(`/api/assessment360/cycles/${cycleId}/action-plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ strengths: strengthsText, priorities: prioritiesText, plan30, plan60, plan90 }),
+    });
+    const json = await res.json();
+    setSavingPlan(false);
+    if (!res.ok) {
+      setStatus(`error: ${json.error ?? "failed to save action plan"}`);
+      return;
+    }
+    setStatus("Saved development action plan.");
+    await load();
   }
 
   return (
@@ -150,7 +229,9 @@ export default function Assessment360CyclePage() {
           <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")}>Self</button>
           <button className={`step ${tab === "manager" ? "active" : ""}`} onClick={() => setTab("manager")}>Manager</button>
         </div>
-        <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total}</p>
+        <p className="meta">Purpose: development-first feedback, not punitive scoring.</p>
+        <p className="meta">Rate observed behavior from this cycle period and use comments as evidence.</p>
+        <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total} · status: {currentSubmission?.status ?? "not started"}</p>
       </section>
 
       <section className="card grid" style={{ marginBottom: 12 }}>
@@ -170,6 +251,7 @@ export default function Assessment360CyclePage() {
                 <select
                   className="select"
                   value={scores[q.id] ?? ""}
+                  disabled={isFinalized}
                   onChange={(e) => setScores((s) => ({ ...s, [q.id]: Number(e.target.value) }))}
                 >
                   <option value="">Score (1-5)</option>
@@ -182,6 +264,7 @@ export default function Assessment360CyclePage() {
                 <input
                   className="input"
                   value={comments[q.id] ?? ""}
+                  disabled={isFinalized}
                   onChange={(e) => setComments((c) => ({ ...c, [q.id]: e.target.value }))}
                   placeholder="Optional evidence comment"
                 />
@@ -190,13 +273,15 @@ export default function Assessment360CyclePage() {
           );
         })}
 
-        <div>
-          <button className="button" onClick={saveRatings} disabled={saving}>Save {tab} ratings</button>
-          {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="button ghost" onClick={() => saveRatings("draft")} disabled={saving || isFinalized}>Save draft</button>
+          <button className="button" onClick={() => saveRatings("final")} disabled={saving || isFinalized}>Final submit</button>
+          {isFinalized ? <button className="button ghost" onClick={reopenFinal} disabled={saving}>Reopen</button> : null}
         </div>
+        {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
       </section>
 
-      <section className="card">
+      <section className="card" style={{ marginBottom: 12 }}>
         <h2 style={{ marginTop: 0 }}>Summary</h2>
         {!data ? (
           <p className="meta">No data yet.</p>
@@ -230,34 +315,22 @@ export default function Assessment360CyclePage() {
                 </div>
               )}
             </div>
-
-            <div>
-              <strong>Top 3 strengths</strong>
-              {!advancedSummary || advancedSummary.strengths.length === 0 ? (
-                <p className="meta">No ratings yet.</p>
-              ) : (
-                <ol className="meta" style={{ marginTop: 8 }}>
-                  {advancedSummary.strengths.map((s) => (
-                    <li key={`s-${s.dimension}`}>{s.dimension} ({s.overallAvg}/5)</li>
-                  ))}
-                </ol>
-              )}
-            </div>
-
-            <div>
-              <strong>Top 3 development priorities</strong>
-              {!advancedSummary || advancedSummary.development.length === 0 ? (
-                <p className="meta">No ratings yet.</p>
-              ) : (
-                <ol className="meta" style={{ marginTop: 8 }}>
-                  {advancedSummary.development.map((d) => (
-                    <li key={`d-${d.dimension}`}>{d.dimension} ({d.overallAvg}/5)</li>
-                  ))}
-                </ol>
-              )}
-            </div>
           </div>
         )}
+      </section>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Development action plan (30/60/90)</h2>
+        <div className="grid" style={{ gap: 8 }}>
+          <input className="input" value={strengthsText} onChange={(e) => setStrengthsText(e.target.value)} placeholder="Top 2 strengths" />
+          <input className="input" value={prioritiesText} onChange={(e) => setPrioritiesText(e.target.value)} placeholder="Top 2 development priorities" />
+          <textarea className="input" value={plan30} onChange={(e) => setPlan30(e.target.value)} placeholder="30-day actions" rows={3} />
+          <textarea className="input" value={plan60} onChange={(e) => setPlan60(e.target.value)} placeholder="60-day actions" rows={3} />
+          <textarea className="input" value={plan90} onChange={(e) => setPlan90(e.target.value)} placeholder="90-day actions" rows={3} />
+          <div>
+            <button className="button" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
+          </div>
+        </div>
       </section>
     </main>
   );

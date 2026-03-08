@@ -8,15 +8,39 @@ type AnswerInput = { questionId: string; score: number; comment?: string };
 
 export async function POST(req: Request, ctx: Ctx) {
   const { cycleId } = await ctx.params;
-  const body = (await req.json()) as { raterType?: RaterType; answers?: AnswerInput[] };
+  const body = (await req.json()) as {
+    raterType?: RaterType;
+    answers?: AnswerInput[];
+    mode?: "draft" | "final";
+    forceEditAfterFinal?: boolean;
+  };
 
   if (body.raterType !== "self" && body.raterType !== "manager") {
     return NextResponse.json({ error: "raterType must be self or manager" }, { status: 400 });
   }
 
+  const mode = body.mode === "final" ? "final" : "draft";
   const answers = body.answers ?? [];
   if (!answers.length) {
     return NextResponse.json({ error: "answers are required" }, { status: 400 });
+  }
+
+  const existingSubmission = await supabaseServer
+    .from("assessment360_submissions")
+    .select("status,version")
+    .eq("cycle_id", cycleId)
+    .eq("rater_type", body.raterType)
+    .maybeSingle();
+
+  if (existingSubmission.error) {
+    return NextResponse.json({ error: existingSubmission.error.message }, { status: 500 });
+  }
+
+  if (existingSubmission.data?.status === "final_submitted" && !body.forceEditAfterFinal) {
+    return NextResponse.json(
+      { error: `${body.raterType} submission is finalized. Reopen before editing.` },
+      { status: 409 },
+    );
   }
 
   const byId = new Map(ASSESSMENT_360_QUESTIONS.map((q) => [q.id, q]));
@@ -50,10 +74,31 @@ export async function POST(req: Request, ctx: Ctx) {
     });
   }
 
-  const { error } = await supabaseServer
+  const { error: saveError } = await supabaseServer
     .from("assessment360_responses")
     .upsert(rows, { onConflict: "cycle_id,rater_type,question_id" });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, count: rows.length });
+  if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 });
+
+  const nextStatus = mode === "final" ? "final_submitted" : "draft";
+  const prevVersion = existingSubmission.data?.version ?? 0;
+
+  const { error: submissionError } = await supabaseServer
+    .from("assessment360_submissions")
+    .upsert(
+      {
+        cycle_id: cycleId,
+        rater_type: body.raterType,
+        status: nextStatus,
+        submitted_at: mode === "final" ? new Date().toISOString() : null,
+        submitted_by: body.raterType,
+        version: prevVersion + 1,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "cycle_id,rater_type" },
+    );
+
+  if (submissionError) return NextResponse.json({ error: submissionError.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true, count: rows.length, status: nextStatus });
 }

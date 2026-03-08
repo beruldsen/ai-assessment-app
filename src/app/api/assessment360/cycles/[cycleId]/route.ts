@@ -6,7 +6,7 @@ type Ctx = { params: Promise<{ cycleId: string }> };
 export async function GET(_: Request, ctx: Ctx) {
   const { cycleId } = await ctx.params;
 
-  const [cycleRes, responsesRes] = await Promise.all([
+  const [cycleRes, responsesRes, submissionsRes, actionPlanRes] = await Promise.all([
     supabaseServer
       .from("assessment360_cycles")
       .select("id,title,participant_name,status,created_at")
@@ -16,6 +16,15 @@ export async function GET(_: Request, ctx: Ctx) {
       .from("assessment360_responses")
       .select("rater_type,question_id,dimension,question_text,score,comment")
       .eq("cycle_id", cycleId),
+    supabaseServer
+      .from("assessment360_submissions")
+      .select("rater_type,status,submitted_at,version")
+      .eq("cycle_id", cycleId),
+    supabaseServer
+      .from("assessment360_action_plans")
+      .select("strengths,priorities,plan_30,plan_60,plan_90,updated_at")
+      .eq("cycle_id", cycleId)
+      .maybeSingle(),
   ]);
 
   if (cycleRes.error || !cycleRes.data) {
@@ -23,6 +32,12 @@ export async function GET(_: Request, ctx: Ctx) {
   }
   if (responsesRes.error) {
     return NextResponse.json({ error: responsesRes.error.message }, { status: 500 });
+  }
+  if (submissionsRes.error) {
+    return NextResponse.json({ error: submissionsRes.error.message }, { status: 500 });
+  }
+  if (actionPlanRes.error) {
+    return NextResponse.json({ error: actionPlanRes.error.message }, { status: 500 });
   }
 
   const responses = responsesRes.data ?? [];
@@ -53,6 +68,8 @@ export async function GET(_: Request, ctx: Ctx) {
   return NextResponse.json({
     cycle: cycleRes.data,
     responses,
+    submissions: submissionsRes.data ?? [],
+    actionPlan: actionPlanRes.data ?? null,
     summary: { raterAverages, dimensionAverages },
   });
 }
