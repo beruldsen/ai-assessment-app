@@ -210,6 +210,19 @@ export default function Assessment360CyclePage() {
     };
   }, [advancedSummary]);
 
+  const commentsByDimension = useMemo(() => {
+    if (!data) return [] as Array<{ dimension: string; self: string[]; manager: string[] }>;
+    const map = new Map<string, { self: string[]; manager: string[] }>();
+    for (const r of data.responses) {
+      if (!r.comment?.trim()) continue;
+      const bucket = map.get(r.dimension) ?? { self: [], manager: [] };
+      if (r.rater_type === "self") bucket.self.push(r.comment.trim());
+      if (r.rater_type === "manager") bucket.manager.push(r.comment.trim());
+      map.set(r.dimension, bucket);
+    }
+    return Array.from(map.entries()).map(([dimension, v]) => ({ dimension, self: v.self, manager: v.manager }));
+  }, [data]);
+
   async function saveRatings(mode: "draft" | "final") {
     const answers = ASSESSMENT_360_QUESTIONS
       .map((q) => ({ questionId: q.id, score: Number(scores[q.id]), comment: comments[q.id] ?? "" }))
@@ -390,6 +403,23 @@ export default function Assessment360CyclePage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+      </section>
+
+      <section className="card" style={{ marginBottom: 12 }}>
+        <h2 style={{ marginTop: 0 }}>Evidence comments</h2>
+        {commentsByDimension.length === 0 ? (
+          <p className="meta">No evidence comments were provided.</p>
+        ) : (
+          <div className="grid" style={{ gap: 10 }}>
+            {commentsByDimension.map((c) => (
+              <div key={`comments-${c.dimension}`} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10 }}>
+                <strong>{c.dimension}</strong>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Self:</strong> {c.self.length ? c.self.join(" | ") : "No comment"}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Manager:</strong> {c.manager.length ? c.manager.join(" | ") : "No comment"}</div>
+              </div>
+            ))}
           </div>
         )}
       </section>
