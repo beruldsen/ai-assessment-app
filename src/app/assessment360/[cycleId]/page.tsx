@@ -354,15 +354,21 @@ export default function Assessment360CyclePage() {
           <p className="meta">No ratings yet.</p>
         ) : (
           <div className="grid" style={{ gap: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(120px, 1fr))", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(120px, 1fr))", gap: 8 }}>
               <div className="card"><strong>Overall self</strong><div className="meta">{executiveSummary.overallSelf}/5</div></div>
               <div className="card"><strong>Overall manager</strong><div className="meta">{executiveSummary.overallManager}/5</div></div>
               <div className="card"><strong>Net gap</strong><div className="meta">{executiveSummary.netGap}</div></div>
               <div className="card"><strong>Biggest mismatch</strong><div className="meta">{executiveSummary.biggestGap?.dimension ?? "-"}</div></div>
+              <div className="card"><strong>Coverage</strong><div className="meta">{advancedSummary.rows.filter((r) => r.selfAvg !== null && r.managerAvg !== null).length}/{ASSESSMENT_180_CAPABILITIES.length} both rated</div></div>
             </div>
 
-            <div className="meta">
-              Strongest area: <strong>{executiveSummary.strongest?.dimension ?? "-"}</strong>. Biggest alignment risk: <strong>{executiveSummary.biggestGap?.dimension ?? "-"}</strong>.
+            <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "#f8fafc" }}>
+              <strong>Narrative insights</strong>
+              <ul className="meta" style={{ marginTop: 6, marginBottom: 0, paddingLeft: 18 }}>
+                <li>Strongest signal: <strong>{executiveSummary.strongest?.dimension ?? "-"}</strong> ({executiveSummary.strongest?.overallAvg ?? "-"}/5).</li>
+                <li>Largest mismatch: <strong>{executiveSummary.biggestGap?.dimension ?? "-"}</strong> (gap {executiveSummary.biggestGap?.gap ?? "-"}).</li>
+                <li>Action focus this cycle: align expectations on top 1–2 mismatch capabilities before next review.</li>
+              </ul>
             </div>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -390,13 +396,14 @@ export default function Assessment360CyclePage() {
                 <tbody>
                   {reportRows.map((r) => {
                     const badge = r.absGap >= 1 ? "Priority" : r.absGap >= 0.5 ? "Watch" : "Aligned";
+                    const badgeClass = badge === "Priority" ? "badge error" : badge === "Watch" ? "badge" : "badge success";
                     return (
                       <tr key={`rep-${r.dimension}`}>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.dimension}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.selfAvg ?? "-"}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.managerAvg ?? "-"}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.gap ?? "-"}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{badge}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}><span className={badgeClass}>{badge}</span></td>
                       </tr>
                     );
                   })}
