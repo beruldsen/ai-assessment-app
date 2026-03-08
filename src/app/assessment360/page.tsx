@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 type Cycle = {
   id: string;
@@ -9,37 +11,44 @@ type Cycle = {
   participant_name: string;
   status: "open" | "closed";
   created_at: string;
+  my_role?: "self" | "manager" | "admin";
 };
 
 export default function Assessment360HomePage() {
   const router = useRouter();
-  const [title, setTitle] = useState("Future-Ready SE 360");
+  const [title, setTitle] = useState("Future-Ready SE 180");
   const [participantName, setParticipantName] = useState("");
+  const [managerEmail, setManagerEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [cycles, setCycles] = useState<Cycle[]>([]);
 
+  async function authHeaders() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   async function loadCycles() {
-    const res = await fetch("/api/assessment360/cycles");
+    const res = await fetch("/api/assessment360/cycles", { headers: await authHeaders() });
     const json = await res.json();
     if (!res.ok) return setStatus(`error: ${json.error ?? "failed to load cycles"}`);
     setCycles(json.cycles ?? []);
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCycles();
   }, []);
 
   async function createCycle() {
-    if (!title.trim() || !participantName.trim()) return;
+    if (!title.trim() || !participantName.trim() || !managerEmail.trim()) return;
     setBusy(true);
     setStatus("creating...");
 
     const res = await fetch("/api/assessment360/cycles", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), participantName: participantName.trim() }),
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ title: title.trim(), participantName: participantName.trim(), managerEmail: managerEmail.trim() }),
     });
 
     const json = await res.json();
@@ -54,7 +63,7 @@ export default function Assessment360HomePage() {
 
   return (
     <main className="page">
-      <h1 className="title">Future SE 180° Assessment (MVP)</h1>
+      <h1 className="title">Future SE 180° Assessment</h1>
       <p className="subtitle">Self + manager ratings, based on 7 capability areas and observable behaviours.</p>
 
       <section className="card grid" style={{ marginBottom: 14 }}>
@@ -66,8 +75,12 @@ export default function Assessment360HomePage() {
           Participant name
           <input className="input" value={participantName} onChange={(e) => setParticipantName(e.target.value)} placeholder="e.g. Alex Johnson" disabled={busy} />
         </label>
+        <label>
+          Manager email
+          <input className="input" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} placeholder="manager@company.com" disabled={busy} />
+        </label>
         <div>
-          <button className="button" onClick={createCycle} disabled={busy || !title.trim() || !participantName.trim()}>
+          <button className="button" onClick={createCycle} disabled={busy || !title.trim() || !participantName.trim() || !managerEmail.trim()}>
             Create cycle
           </button>
           {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
@@ -75,7 +88,7 @@ export default function Assessment360HomePage() {
       </section>
 
       <section className="card">
-        <h2 style={{ marginTop: 0 }}>Recent cycles</h2>
+        <h2 style={{ marginTop: 0 }}>My cycles</h2>
         {cycles.length === 0 ? (
           <p className="meta">No cycles yet.</p>
         ) : (
@@ -88,7 +101,7 @@ export default function Assessment360HomePage() {
                 onClick={() => router.push(`/assessment360/${c.id}`)}
               >
                 <strong>{c.title}</strong>
-                <div className="meta">{c.participant_name} · {new Date(c.created_at).toLocaleString()}</div>
+                <div className="meta">{c.participant_name} · {new Date(c.created_at).toLocaleString()} · role: {c.my_role ?? "-"}</div>
               </button>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { ASSESSMENT_360_QUESTIONS, type RaterType } from "@/lib/assessment360";
+import { cycleHasParticipants, getCycleRole, getRequestUser } from "@/lib/assessmentAccess";
 
 type Ctx = { params: Promise<{ cycleId: string }> };
 
@@ -15,8 +16,20 @@ export async function POST(req: Request, ctx: Ctx) {
     forceEditAfterFinal?: boolean;
   };
 
+  const user = await getRequestUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   if (body.raterType !== "self" && body.raterType !== "manager") {
     return NextResponse.json({ error: "raterType must be self or manager" }, { status: 400 });
+  }
+
+  const hasParticipants = await cycleHasParticipants(cycleId);
+  if (hasParticipants) {
+    const role = await getCycleRole(cycleId, user.email);
+    if (!role) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (role !== "admin" && role !== body.raterType) {
+      return NextResponse.json({ error: `You are not allowed to submit ${body.raterType} ratings` }, { status: 403 });
+    }
   }
 
   const mode = body.mode === "final" ? "final" : "draft";
@@ -91,7 +104,7 @@ export async function POST(req: Request, ctx: Ctx) {
         rater_type: body.raterType,
         status: nextStatus,
         submitted_at: mode === "final" ? new Date().toISOString() : null,
-        submitted_by: body.raterType,
+        submitted_by: user.email,
         version: prevVersion + 1,
         updated_at: new Date().toISOString(),
       },
