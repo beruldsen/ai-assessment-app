@@ -21,6 +21,23 @@ export async function getRequestUser(req: Request) {
   return { id: data.user.id, email: data.user.email.toLowerCase() };
 }
 
+export async function isAssessmentAdmin(email: string) {
+  const { count } = await supabaseServer
+    .from("assessment360_admins")
+    .select("email", { count: "exact", head: true });
+
+  // Bootstrap mode: if no admins configured yet, first authenticated user gets admin capability.
+  if ((count ?? 0) === 0) return true;
+
+  const { data, error } = await supabaseServer
+    .from("assessment360_admins")
+    .select("email")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  if (error) return false;
+  return Boolean(data?.email);
+}
+
 export async function getCycleRole(cycleId: string, email: string): Promise<AssessmentRole | null> {
   const { data, error } = await supabaseServer
     .from("assessment360_cycle_participants")
