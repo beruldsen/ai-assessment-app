@@ -310,6 +310,7 @@ export default function Assessment360CyclePage() {
         {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
       </section>
 
+      <div className="print-report">
       <section className="card" style={{ marginBottom: 12 }}>
         <h2 style={{ marginTop: 0 }}>Visual report</h2>
         {!advancedSummary || advancedSummary.rows.length === 0 ? <p className="meta">No ratings yet.</p> : (
@@ -359,7 +360,7 @@ export default function Assessment360CyclePage() {
                 <option value="manager">Manager score</option>
                 <option value="capability">Capability</option>
               </select>
-              <button className="button ghost" onClick={() => window.print()}>Print / Save PDF</button>
+              <button className="button ghost print-hide" onClick={() => window.print()}>Print / Save PDF</button>
             </div>
 
             <div style={{ overflowX: "auto" }}>
@@ -401,9 +402,10 @@ export default function Assessment360CyclePage() {
           <textarea className="input" value={plan30} onChange={(e) => setPlan30(e.target.value)} placeholder="30-day actions" rows={3} />
           <textarea className="input" value={plan60} onChange={(e) => setPlan60(e.target.value)} placeholder="60-day actions" rows={3} />
           <textarea className="input" value={plan90} onChange={(e) => setPlan90(e.target.value)} placeholder="90-day actions" rows={3} />
-          <button className="button" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
+          <button className="button print-hide" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
         </div>
       </section>
+      </div>
     </main>
   );
 }

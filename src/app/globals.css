@@ -105,3 +105,15 @@ body {
 
 .scoreBar { height: 8px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
 .scoreBar > span { display: block; height: 100%; background: #2563eb; }
+
+@media print {
+  body { background: #fff !important; }
+  .page > * { display: none !important; }
+  .page > .print-report { display: block !important; }
+  .print-report .print-hide { display: none !important; }
+  .print-report .card {
+    box-shadow: none;
+    border: 1px solid #d1d5db;
+    break-inside: avoid;
+  }
+}
