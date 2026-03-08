@@ -150,15 +150,6 @@ export default function Assessment360CyclePage() {
     [data, tab],
   );
   const isFinalized = currentSubmission?.status === "final_submitted";
-  const canUseSelfTab = data?.viewerRole === "self" || data?.viewerRole === "admin" || data?.viewerRole === null;
-  const canUseManagerTab = data?.viewerRole === "manager" || data?.viewerRole === "admin" || data?.viewerRole === null;
-
-  useEffect(() => {
-    if (!data?.viewerRole || data.viewerRole === "admin") return;
-    if (data.viewerRole === "self" && tab !== "self") setTab("self");
-    if (data.viewerRole === "manager" && tab !== "manager") setTab("manager");
-  }, [data?.viewerRole, tab]);
-
   const completion = useMemo(() => {
     const done = ASSESSMENT_360_QUESTIONS.filter((q) => Number(scores[q.id]) >= 1 && Number(scores[q.id]) <= 5).length;
     return { done, total: ASSESSMENT_360_QUESTIONS.length };
@@ -252,8 +243,8 @@ export default function Assessment360CyclePage() {
 
       <section className="card" style={{ marginBottom: 12 }}>
         <div className="progress" style={{ marginBottom: 10 }}>
-          <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")} disabled={!canUseSelfTab}>Self</button>
-          <button className={`step ${tab === "manager" ? "active" : ""}`} onClick={() => setTab("manager")} disabled={!canUseManagerTab}>Manager</button>
+          <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")}>Self</button>
+          <button className={`step ${tab === "manager" ? "active" : ""}`} onClick={() => setTab("manager")}>Manager</button>
         </div>
         <p className="meta">Purpose: development-first feedback, not punitive scoring.</p>
         <p className="meta">Rate observed behavior from this cycle period and use comments as evidence.</p>

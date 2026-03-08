@@ -27,9 +27,6 @@ export async function POST(req: Request, ctx: Ctx) {
   if (hasParticipants) {
     const role = await getCycleRole(cycleId, user.email);
     if (!role) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (role !== "admin" && role !== body.raterType) {
-      return NextResponse.json({ error: `You are not allowed to submit ${body.raterType} ratings` }, { status: 403 });
-    }
   }
 
   const mode = body.mode === "final" ? "final" : "draft";
