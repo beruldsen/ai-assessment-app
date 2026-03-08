@@ -241,7 +241,8 @@ export default function Assessment360CyclePage() {
 
   function formatGap(gap: number | null) {
     if (gap === null) return "-";
-    return gap > 0 ? `+${gap}` : `${gap}`;
+    const inverted = Number((gap * -1).toFixed(2));
+    return inverted > 0 ? `+${inverted}` : `${inverted}`;
   }
 
   async function saveRatings(mode: "draft" | "final") {
@@ -360,7 +361,7 @@ export default function Assessment360CyclePage() {
                 {advancedSummary.byGap.map((r) => (
                   <div key={r.dimension} style={{ background: `rgba(239,68,68,${Math.min(0.1 + r.absGap / 5, 0.6)})`, padding: 8, borderRadius: 6 }}>
                     <div className="meta"><strong>{r.dimension}</strong></div>
-                    <div className="meta">self {r.selfAvg ?? "-"} · manager {r.managerAvg ?? "-"} · gap {r.gap ?? "-"}</div>
+                    <div className="meta">self {r.selfAvg ?? "-"} · manager {r.managerAvg ?? "-"} · gap (manager - self) {formatGap(r.gap)}</div>
                   </div>
                 ))}
               </div>
@@ -378,7 +379,7 @@ export default function Assessment360CyclePage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(120px, 1fr))", gap: 8 }}>
               <div className="card"><strong>Overall self</strong><div className="meta">{executiveSummary.overallSelf}/5</div></div>
               <div className="card"><strong>Overall manager</strong><div className="meta">{executiveSummary.overallManager}/5</div></div>
-              <div className="card"><strong>Net gap</strong><div className="meta">{executiveSummary.netGap}</div></div>
+              <div className="card"><strong>Net gap (manager - self)</strong><div className="meta">{formatGap(executiveSummary.netGap)}</div></div>
               <div className="card"><strong>Biggest mismatch</strong><div className="meta">{executiveSummary.biggestGap?.dimension ?? "-"}</div></div>
               <div className="card"><strong>Coverage</strong><div className="meta">{advancedSummary.rows.filter((r) => r.selfAvg !== null && r.managerAvg !== null).length}/{ASSESSMENT_180_CAPABILITIES.length} both rated</div></div>
             </div>
@@ -387,7 +388,7 @@ export default function Assessment360CyclePage() {
               <strong>Narrative insights</strong>
               <ul className="meta" style={{ marginTop: 6, marginBottom: 0, paddingLeft: 18 }}>
                 <li>Strongest signal: <strong>{executiveSummary.strongest?.dimension ?? "-"}</strong> ({executiveSummary.strongest?.overallAvg ?? "-"}/5).</li>
-                <li>Largest mismatch: <strong>{executiveSummary.biggestGap?.dimension ?? "-"}</strong> (gap {executiveSummary.biggestGap?.gap ?? "-"}).</li>
+                <li>Largest mismatch: <strong>{executiveSummary.biggestGap?.dimension ?? "-"}</strong> (gap manager - self {formatGap(executiveSummary.biggestGap?.gap ?? null)}).</li>
                 <li>Action focus this cycle: align expectations on top 1–2 mismatch capabilities before next review.</li>
               </ul>
             </div>
@@ -411,7 +412,7 @@ export default function Assessment360CyclePage() {
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Self</th>
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Manager</th>
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Average Score</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap (Self - Manager)</th>
+                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap (Manager - Self)</th>
                     <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Status</th>
                   </tr>
                 </thead>
@@ -449,7 +450,7 @@ export default function Assessment360CyclePage() {
                 <div className="meta" style={{ marginTop: 6 }}><strong>Manager Score:</strong> {c.managerScore ?? "-"}</div>
                 <div className="meta" style={{ marginTop: 6 }}><strong>Self Score:</strong> {c.selfScore ?? "-"}</div>
                 <div className="meta" style={{ marginTop: 6 }}><strong>Average Score:</strong> {c.averageScore ?? "-"}</div>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Gap (Self - Manager):</strong> {formatGap(c.gap)}</div>
+                <div className="meta" style={{ marginTop: 6 }}><strong>Gap (Manager - Self):</strong> {formatGap(c.gap)}</div>
                 <div className="meta" style={{ marginTop: 6 }}><strong>Comments:</strong> {[
                   c.manager.length ? `Manager: ${c.manager.join(" | ")}` : "Manager: No comment",
                   c.self.length ? `Self: ${c.self.join(" | ")}` : "Self: No comment",
