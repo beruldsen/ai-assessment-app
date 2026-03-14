@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { ASSESSMENT_180_CAPABILITIES, ASSESSMENT_360_QUESTIONS, type RaterType } from "@/lib/assessment360";
@@ -65,6 +65,7 @@ export default function Assessment360CyclePage() {
   const totalSteps = ASSESSMENT_180_CAPABILITIES.length;
   const currentCapability = ASSESSMENT_180_CAPABILITIES[currentStep];
   const currentQuestion = ASSESSMENT_360_QUESTIONS.find((q) => q.id === currentCapability?.id);
+  const prevTabRef = useRef<RaterType>(tab);
 
   async function authHeaders() {
     const { data } = await supabase.auth.getSession();
@@ -108,8 +109,13 @@ export default function Assessment360CyclePage() {
     }
     setScores(nextScores);
     setComments(nextComments);
-    setCurrentStep(0);
-    setCompleted(false);
+
+    const tabChanged = prevTabRef.current !== tab;
+    if (tabChanged) {
+      setCurrentStep(0);
+      setCompleted(false);
+      prevTabRef.current = tab;
+    }
   }, [tab, data]);
 
   const currentSubmission = useMemo(() => data?.submissions.find((s) => s.rater_type === tab) ?? null, [data, tab]);
