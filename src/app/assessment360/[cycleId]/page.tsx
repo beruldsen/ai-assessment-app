@@ -155,12 +155,18 @@ export default function Assessment360CyclePage() {
       return;
     }
 
-    setSaving(true);
     const lastStep = currentStep === totalSteps - 1;
+    const previousStep = currentStep;
+    if (!lastStep) {
+      setCurrentStep(Math.min(currentStep + 1, totalSteps - 1));
+    }
+
+    setSaving(true);
     const result = await persistAnswers(lastStep ? "final" : "draft");
     setSaving(false);
 
     if (!result.ok) {
+      if (!lastStep) setCurrentStep(previousStep);
       setStatus(result.message);
       return;
     }
@@ -171,7 +177,6 @@ export default function Assessment360CyclePage() {
       return;
     }
 
-    setCurrentStep((s) => Math.min(s + 1, totalSteps - 1));
     setStatus("");
   }
 
