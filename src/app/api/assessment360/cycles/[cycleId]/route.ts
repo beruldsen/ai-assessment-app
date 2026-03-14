@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { cycleHasParticipants, getCycleRole, getRequestUser } from "@/lib/assessmentAccess";
+import { cycleHasParticipants, getCycleRole, getRequestUser, isAssessmentAdmin } from "@/lib/assessmentAccess";
 
 type Ctx = { params: Promise<{ cycleId: string }> };
 
@@ -9,9 +9,12 @@ export async function GET(req: Request, ctx: Ctx) {
   const user = await getRequestUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const admin = await isAssessmentAdmin(user.email);
   const hasParticipants = await cycleHasParticipants(cycleId);
   let viewerRole: "self" | "manager" | "admin" | null = null;
-  if (hasParticipants) {
+  if (admin) {
+    viewerRole = "admin";
+  } else if (hasParticipants) {
     const role = await getCycleRole(cycleId, user.email);
     if (!role) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     viewerRole = role;

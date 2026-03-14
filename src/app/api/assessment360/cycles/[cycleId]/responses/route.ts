@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { ASSESSMENT_360_QUESTIONS, type RaterType } from "@/lib/assessment360";
-import { cycleHasParticipants, getCycleRole, getRequestUser } from "@/lib/assessmentAccess";
+import { cycleHasParticipants, getCycleRole, getRequestUser, isAssessmentAdmin } from "@/lib/assessmentAccess";
 
 type Ctx = { params: Promise<{ cycleId: string }> };
 
@@ -23,8 +23,9 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "raterType must be self or manager" }, { status: 400 });
   }
 
+  const admin = await isAssessmentAdmin(user.email);
   const hasParticipants = await cycleHasParticipants(cycleId);
-  if (hasParticipants) {
+  if (!admin && hasParticipants) {
     const role = await getCycleRole(cycleId, user.email);
     if (!role) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
