@@ -32,14 +32,6 @@ type ApiResponse = {
     comment: string | null;
   }>;
   submissions: SubmissionState[];
-  actionPlan: {
-    strengths: string | null;
-    priorities: string | null;
-    plan_30: string | null;
-    plan_60: string | null;
-    plan_90: string | null;
-    updated_at: string;
-  } | null;
 };
 
 export default function Assessment360CyclePage() {
@@ -52,15 +44,8 @@ export default function Assessment360CyclePage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [saving, setSaving] = useState(false);
-  const [savingPlan, setSavingPlan] = useState(false);
-
   const [scores, setScores] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
-  const [strengthsText, setStrengthsText] = useState("");
-  const [prioritiesText, setPrioritiesText] = useState("");
-  const [plan30, setPlan30] = useState("");
-  const [plan60, setPlan60] = useState("");
-  const [plan90, setPlan90] = useState("");
 
   const totalSteps = ASSESSMENT_180_CAPABILITIES.length;
   const currentCapability = ASSESSMENT_180_CAPABILITIES[currentStep];
@@ -85,11 +70,6 @@ export default function Assessment360CyclePage() {
 
     const payload = json as ApiResponse;
     setData(payload);
-    setStrengthsText(payload.actionPlan?.strengths ?? "");
-    setPrioritiesText(payload.actionPlan?.priorities ?? "");
-    setPlan30(payload.actionPlan?.plan_30 ?? "");
-    setPlan60(payload.actionPlan?.plan_60 ?? "");
-    setPlan90(payload.actionPlan?.plan_90 ?? "");
     setStatus("");
   }
 
@@ -202,20 +182,6 @@ export default function Assessment360CyclePage() {
     setStatus(`${tab} reopened to draft.`);
   }
 
-  async function saveActionPlan() {
-    setSavingPlan(true);
-    const res = await fetch(`/api/assessment360/cycles/${cycleId}/action-plan`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-      body: JSON.stringify({ strengths: strengthsText, priorities: prioritiesText, plan30, plan60, plan90 }),
-    });
-    const json = await res.json();
-    setSavingPlan(false);
-    if (!res.ok) return setStatus(`error: ${json.error ?? "failed to save action plan"}`);
-    setStatus("Saved development action plan.");
-    await load();
-  }
-
   return (
     <main className="page">
       <h1 className="title">Future SE 180° Assessment Cycle</h1>
@@ -306,18 +272,6 @@ export default function Assessment360CyclePage() {
           )}
         </section>
       )}
-
-      <section className="card">
-        <h2 style={{ marginTop: 0 }}>Development action plan (30/60/90)</h2>
-        <div className="grid" style={{ gap: 8 }}>
-          <input className="input" value={strengthsText} onChange={(e) => setStrengthsText(e.target.value)} placeholder="Top 2 strengths" />
-          <input className="input" value={prioritiesText} onChange={(e) => setPrioritiesText(e.target.value)} placeholder="Top 2 development priorities" />
-          <textarea className="input" value={plan30} onChange={(e) => setPlan30(e.target.value)} placeholder="30-day actions" rows={3} />
-          <textarea className="input" value={plan60} onChange={(e) => setPlan60(e.target.value)} placeholder="60-day actions" rows={3} />
-          <textarea className="input" value={plan90} onChange={(e) => setPlan90(e.target.value)} placeholder="90-day actions" rows={3} />
-          <button className="button" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
-        </div>
-      </section>
 
       {status ? <p className="meta" style={{ marginTop: 10 }}>{status}</p> : null}
     </main>
