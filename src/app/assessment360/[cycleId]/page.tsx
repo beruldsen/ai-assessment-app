@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -39,56 +40,14 @@ type ApiResponse = {
     plan_90: string | null;
     updated_at: string;
   } | null;
-  summary: {
-    raterAverages: Array<{ raterType: string; avgScore: number }>;
-    dimensionAverages: Array<{ dimension: string; avgScore: number }>;
-  };
 };
-
-function RadarChart({ rows }: { rows: Array<{ dimension: string; selfAvg: number | null; managerAvg: number | null }> }) {
-  if (!rows.length) return null;
-  const size = 280;
-  const cx = 140;
-  const cy = 140;
-  const radius = 95;
-
-  const point = (idx: number, value: number, total: number) => {
-    const angle = (Math.PI * 2 * idx) / total - Math.PI / 2;
-    const r = (value / 5) * radius;
-    return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-  };
-
-  const toPath = (vals: number[]) =>
-    vals
-      .map((v, i) => {
-        const p = point(i, v, vals.length);
-        return `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
-      })
-      .join(" ") + " Z";
-
-  const selfVals = rows.map((r) => r.selfAvg ?? 0);
-  const managerVals = rows.map((r) => r.managerAvg ?? 0);
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {[1, 2, 3, 4, 5].map((lvl) => (
-        <circle key={lvl} cx={cx} cy={cy} r={(lvl / 5) * radius} fill="none" stroke="#2a2a2a" strokeWidth="1" />
-      ))}
-      {rows.map((r, i) => {
-        const p = point(i, 5, rows.length);
-        return <line key={r.dimension} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#2a2a2a" strokeWidth="1" />;
-      })}
-      <path d={toPath(selfVals)} fill="rgba(59,130,246,0.25)" stroke="#3b82f6" strokeWidth="2" />
-      <path d={toPath(managerVals)} fill="rgba(16,185,129,0.2)" stroke="#10b981" strokeWidth="2" />
-    </svg>
-  );
-}
 
 export default function Assessment360CyclePage() {
   const params = useParams<{ cycleId: string }>();
   const cycleId = String(params.cycleId ?? "");
 
   const [tab, setTab] = useState<RaterType>("self");
+  const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [saving, setSaving] = useState(false);
@@ -101,7 +60,10 @@ export default function Assessment360CyclePage() {
   const [plan30, setPlan30] = useState("");
   const [plan60, setPlan60] = useState("");
   const [plan90, setPlan90] = useState("");
-  const [sortBy, setSortBy] = useState<"gap" | "self" | "manager" | "capability">("gap");
+
+  const totalSteps = ASSESSMENT_180_CAPABILITIES.length;
+  const currentCapability = ASSESSMENT_180_CAPABILITIES[currentStep];
+  const currentQuestion = ASSESSMENT_360_QUESTIONS.find((q) => q.id === currentCapability?.id);
 
   async function authHeaders() {
     const { data } = await supabase.auth.getSession();
@@ -144,105 +106,26 @@ export default function Assessment360CyclePage() {
     }
     setScores(nextScores);
     setComments(nextComments);
+    setCurrentStep(0);
   }, [tab, data]);
 
   const currentSubmission = useMemo(
     () => data?.submissions.find((s) => s.rater_type === tab) ?? null,
     [data, tab],
   );
+
   const isFinalized = currentSubmission?.status === "final_submitted";
   const completion = useMemo(() => {
     const done = ASSESSMENT_360_QUESTIONS.filter((q) => Number(scores[q.id]) >= 1 && Number(scores[q.id]) <= 5).length;
-    return { done, total: ASSESSMENT_360_QUESTIONS.length };
+    return { done, total: ASSESSMENT_360_QUESTIONS.length, percent: Math.round((done / ASSESSMENT_360_QUESTIONS.length) * 100) };
   }, [scores]);
 
-  const advancedSummary = useMemo(() => {
-    if (!data) return null;
+  function goNext() {
+    setCurrentStep((s) => Math.min(s + 1, totalSteps - 1));
+  }
 
-    const byDimension = new Map<string, { self: number[]; manager: number[]; all: number[] }>();
-    for (const r of data.responses) {
-      const bucket = byDimension.get(r.dimension) ?? { self: [], manager: [], all: [] };
-      bucket.all.push(r.score);
-      if (r.rater_type === "self") bucket.self.push(r.score);
-      if (r.rater_type === "manager") bucket.manager.push(r.score);
-      byDimension.set(r.dimension, bucket);
-    }
-
-    const avg = (arr: number[]) => (arr.length ? Number((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null);
-
-    const rows = Array.from(byDimension.entries()).map(([dimension, vals]) => {
-      const selfAvg = avg(vals.self);
-      const managerAvg = avg(vals.manager);
-      const overallAvg = avg(vals.all) ?? 0;
-      const averageScore = selfAvg !== null && managerAvg !== null ? Number(((selfAvg + managerAvg) / 2).toFixed(2)) : null;
-      const gap = selfAvg !== null && managerAvg !== null ? Number((selfAvg - managerAvg).toFixed(2)) : null;
-      return { dimension, selfAvg, managerAvg, overallAvg, averageScore, gap, absGap: gap === null ? 0 : Math.abs(gap) };
-    });
-
-    const strengths = [...rows].sort((a, b) => b.overallAvg - a.overallAvg).slice(0, 3);
-    const development = [...rows].sort((a, b) => a.overallAvg - b.overallAvg).slice(0, 3);
-    const byGap = [...rows].sort((a, b) => b.absGap - a.absGap);
-
-    return { rows, strengths, development, byGap };
-  }, [data]);
-
-  const reportRows = useMemo(() => {
-    if (!advancedSummary) return [];
-    const rows = [...advancedSummary.rows];
-    if (sortBy === "gap") return rows.sort((a, b) => b.absGap - a.absGap);
-    if (sortBy === "self") return rows.sort((a, b) => (b.selfAvg ?? 0) - (a.selfAvg ?? 0));
-    if (sortBy === "manager") return rows.sort((a, b) => (b.managerAvg ?? 0) - (a.managerAvg ?? 0));
-    return rows.sort((a, b) => a.dimension.localeCompare(b.dimension));
-  }, [advancedSummary, sortBy]);
-
-  const executiveSummary = useMemo(() => {
-    if (!advancedSummary) return null;
-    const overallSelf = advancedSummary.rows.reduce((acc, r) => acc + (r.selfAvg ?? 0), 0) / Math.max(1, advancedSummary.rows.length);
-    const overallManager = advancedSummary.rows.reduce((acc, r) => acc + (r.managerAvg ?? 0), 0) / Math.max(1, advancedSummary.rows.length);
-    const netGap = Number((overallSelf - overallManager).toFixed(2));
-    const biggestGap = advancedSummary.byGap[0];
-    const strongest = advancedSummary.strengths[0];
-    return {
-      overallSelf: Number(overallSelf.toFixed(2)),
-      overallManager: Number(overallManager.toFixed(2)),
-      netGap,
-      biggestGap,
-      strongest,
-    };
-  }, [advancedSummary]);
-
-  const commentsByDimension = useMemo(() => {
-    if (!data) return [] as Array<{ dimension: string; self: string[]; manager: string[]; selfScore: number | null; managerScore: number | null; gap: number | null; averageScore: number | null }>;
-    const map = new Map<string, { self: string[]; manager: string[] }>();
-    for (const r of data.responses) {
-      const bucket = map.get(r.dimension) ?? { self: [], manager: [] };
-      if (r.comment?.trim()) {
-        if (r.rater_type === "self") bucket.self.push(r.comment.trim());
-        if (r.rater_type === "manager") bucket.manager.push(r.comment.trim());
-      }
-      map.set(r.dimension, bucket);
-    }
-
-    const scoreMap = new Map((advancedSummary?.rows ?? []).map((r) => [r.dimension, r]));
-
-    return Array.from(map.entries()).map(([dimension, v]) => {
-      const score = scoreMap.get(dimension);
-      return {
-        dimension,
-        self: v.self,
-        manager: v.manager,
-        selfScore: score?.selfAvg ?? null,
-        managerScore: score?.managerAvg ?? null,
-        gap: score?.gap ?? null,
-        averageScore: score?.averageScore ?? null,
-      };
-    });
-  }, [data, advancedSummary]);
-
-  function formatGap(gap: number | null) {
-    if (gap === null) return "-";
-    const inverted = Number((gap * -1).toFixed(2));
-    return inverted > 0 ? `+${inverted}` : `${inverted}`;
+  function goPrev() {
+    setCurrentStep((s) => Math.max(s - 1, 0));
   }
 
   async function saveRatings(mode: "draft" | "final") {
@@ -250,7 +133,11 @@ export default function Assessment360CyclePage() {
       .map((q) => ({ questionId: q.id, score: Number(scores[q.id]), comment: comments[q.id] ?? "" }))
       .filter((a) => Number.isFinite(a.score) && a.score >= 1 && a.score <= 5);
 
-    if (answers.length === 0) return setStatus("Please score at least one question before saving.");
+    if (mode === "final" && answers.length !== ASSESSMENT_360_QUESTIONS.length) {
+      return setStatus("Please complete all capability ratings before final submit.");
+    }
+
+    if (answers.length === 0) return setStatus("Please score at least one capability before saving.");
 
     setSaving(true);
     const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
@@ -303,162 +190,71 @@ export default function Assessment360CyclePage() {
       <p className="subtitle">{data ? `${data.cycle.title} · ${data.cycle.participant_name}` : "Loading..."}</p>
 
       <section className="card" style={{ marginBottom: 12 }}>
-        <div className="progress" style={{ marginBottom: 10 }}>
-          <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")}>Self</button>
-          <button className={`step ${tab === "manager" ? "active" : ""}`} onClick={() => setTab("manager")}>Manager</button>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <div className="progress" style={{ marginBottom: 10 }}>
+            <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")}>Self</button>
+            <button className={`step ${tab === "manager" ? "active" : ""}`} onClick={() => setTab("manager")}>Manager</button>
+          </div>
+          <Link href={`/assessment360/${cycleId}/report`} className="button ghost" style={{ textDecoration: "none" }}>Open report page</Link>
         </div>
         <p className="meta">Purpose: development-first feedback, not punitive scoring.</p>
-        <p className="meta">Rate observed behavior from this cycle period and use comments as evidence.</p>
         <p className="meta">Your role: {data?.viewerRole ?? "unknown"}</p>
         <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total} · status: {currentSubmission?.status ?? "not started"}</p>
-      </section>
 
-      <section className="card grid" style={{ marginBottom: 12 }}>
-        {ASSESSMENT_180_CAPABILITIES.map((capability, idx) => {
-          const q = ASSESSMENT_360_QUESTIONS.find((x) => x.id === capability.id);
-          if (!q) return null;
-          return (
-            <div key={capability.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 12 }}>
-              <h3 style={{ margin: "0 0 8px" }}>{idx + 1}. {capability.capability}</h3>
-              <ul className="meta" style={{ marginTop: 0, marginBottom: 10, paddingLeft: 18 }}>
-                {capability.behaviors.map((b, i) => <li key={`${capability.id}-${i}`} style={{ marginBottom: 4 }}>{b}</li>)}
-              </ul>
-              <div style={{ display: "grid", gap: 8 }}>
-                <select className="select" value={scores[q.id] ?? ""} disabled={isFinalized} onChange={(e) => setScores((s) => ({ ...s, [q.id]: Number(e.target.value) }))}>
-                  <option value="">Score (1-5)</option>
-                  <option value="1">1 - Rarely demonstrated</option>
-                  <option value="2">2 - Occasionally demonstrated</option>
-                  <option value="3">3 - Consistently demonstrated</option>
-                  <option value="4">4 - Strong capability / frequently demonstrated</option>
-                  <option value="5">5 - Role model / consistently drives impact</option>
-                </select>
-                <input className="input" value={comments[q.id] ?? ""} disabled={isFinalized} onChange={(e) => setComments((c) => ({ ...c, [q.id]: e.target.value }))} placeholder="Optional evidence comment" />
-              </div>
-            </div>
-          );
-        })}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="button ghost" onClick={() => saveRatings("draft")} disabled={saving || isFinalized}>Save draft</button>
-          <button className="button" onClick={() => saveRatings("final")} disabled={saving || isFinalized}>Final submit</button>
-          {isFinalized ? <button className="button ghost" onClick={reopenFinal} disabled={saving}>Reopen</button> : null}
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span className="meta">Step {currentStep + 1} of {totalSteps}</span>
+            <span className="meta">{completion.percent}% complete</span>
+          </div>
+          <div className="scoreBar"><span style={{ width: `${completion.percent}%` }} /></div>
         </div>
-        {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
       </section>
 
-      <div className="print-report">
-      <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Visual report</h2>
-        {!advancedSummary || advancedSummary.rows.length === 0 ? <p className="meta">No ratings yet.</p> : (
-          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <strong>Radar: Self vs Manager</strong>
-              <RadarChart rows={advancedSummary.rows} />
-              <p className="meta">Blue: self · Green: manager</p>
-            </div>
-            <div>
-              <strong>Gap heatmap (largest misalignment first)</strong>
-              <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                {advancedSummary.byGap.map((r) => (
-                  <div key={r.dimension} style={{ background: `rgba(239,68,68,${Math.min(0.1 + r.absGap / 5, 0.6)})`, padding: 8, borderRadius: 6 }}>
-                    <div className="meta"><strong>{r.dimension}</strong></div>
-                    <div className="meta">self {r.selfAvg ?? "-"} · manager {r.managerAvg ?? "-"} · gap (manager - self) {formatGap(r.gap)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
+      <section className="card wizard-card" style={{ marginBottom: 12 }} key={`${tab}-${currentCapability?.id}`}>
+        {currentCapability && currentQuestion ? (
+          <>
+            <h2 style={{ marginTop: 0 }}>{currentStep + 1}. {currentCapability.capability}</h2>
+            <ul className="meta" style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18 }}>
+              {currentCapability.behaviors.map((b, i) => <li key={`${currentCapability.id}-${i}`} style={{ marginBottom: 4 }}>{b}</li>)}
+            </ul>
 
-      <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Summary report</h2>
-        {!advancedSummary || !executiveSummary ? (
-          <p className="meta">No ratings yet.</p>
-        ) : (
-          <div className="grid" style={{ gap: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(120px, 1fr))", gap: 8 }}>
-              <div className="card"><strong>Overall self</strong><div className="meta">{executiveSummary.overallSelf}/5</div></div>
-              <div className="card"><strong>Overall manager</strong><div className="meta">{executiveSummary.overallManager}/5</div></div>
-              <div className="card"><strong>Net gap (manager - self)</strong><div className="meta">{formatGap(executiveSummary.netGap)}</div></div>
-              <div className="card"><strong>Biggest mismatch</strong><div className="meta">{executiveSummary.biggestGap?.dimension ?? "-"}</div></div>
-              <div className="card"><strong>Coverage</strong><div className="meta">{advancedSummary.rows.filter((r) => r.selfAvg !== null && r.managerAvg !== null).length}/{ASSESSMENT_180_CAPABILITIES.length} both rated</div></div>
-            </div>
-
-            <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, background: "#f8fafc" }}>
-              <strong>Narrative insights</strong>
-              <ul className="meta" style={{ marginTop: 6, marginBottom: 0, paddingLeft: 18 }}>
-                <li>Strongest signal: <strong>{executiveSummary.strongest?.dimension ?? "-"}</strong> ({executiveSummary.strongest?.overallAvg ?? "-"}/5).</li>
-                <li>Largest mismatch: <strong>{executiveSummary.biggestGap?.dimension ?? "-"}</strong> (gap manager - self {formatGap(executiveSummary.biggestGap?.gap ?? null)}).</li>
-                <li>Action focus this cycle: align expectations on top 1–2 mismatch capabilities before next review.</li>
-              </ul>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <label className="meta">Sort by</label>
-              <select className="select" value={sortBy} onChange={(e) => setSortBy(e.target.value as "gap" | "self" | "manager" | "capability") }>
-                <option value="gap">Gap</option>
-                <option value="self">Self score</option>
-                <option value="manager">Manager score</option>
-                <option value="capability">Capability</option>
+            <div style={{ display: "grid", gap: 8 }}>
+              <select
+                className="select"
+                value={scores[currentQuestion.id] ?? ""}
+                disabled={isFinalized}
+                onChange={(e) => setScores((s) => ({ ...s, [currentQuestion.id]: Number(e.target.value) }))}
+              >
+                <option value="">Score (1-5)</option>
+                <option value="1">1 - Rarely demonstrated</option>
+                <option value="2">2 - Occasionally demonstrated</option>
+                <option value="3">3 - Consistently demonstrated</option>
+                <option value="4">4 - Strong capability / frequently demonstrated</option>
+                <option value="5">5 - Role model / consistently drives impact</option>
               </select>
-              <button className="button ghost print-hide" onClick={() => window.print()}>Print / Save PDF</button>
+
+              <input
+                className="input"
+                value={comments[currentQuestion.id] ?? ""}
+                disabled={isFinalized}
+                onChange={(e) => setComments((c) => ({ ...c, [currentQuestion.id]: e.target.value }))}
+                placeholder="Optional evidence comment"
+              />
             </div>
 
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Capability</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Self</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Manager</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Average Score</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap (Manager - Self)</th>
-                    <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportRows.map((r) => {
-                    const badge = r.absGap >= 1 ? "Priority" : r.absGap >= 0.5 ? "Watch" : "Aligned";
-                    const badgeClass = badge === "Priority" ? "badge error" : badge === "Watch" ? "badge" : "badge success";
-                    return (
-                      <tr key={`rep-${r.dimension}`}>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.dimension}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.selfAvg ?? "-"}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.managerAvg ?? "-"}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.averageScore ?? "-"}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{formatGap(r.gap)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}><span className={badgeClass}>{badge}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="button ghost" onClick={goPrev} disabled={currentStep === 0}>Back</button>
+              <button className="button ghost" onClick={goNext} disabled={currentStep === totalSteps - 1}>Next</button>
+              <button className="button ghost" onClick={() => saveRatings("draft")} disabled={saving || isFinalized}>Save draft</button>
+              <button className="button" onClick={() => saveRatings("final")} disabled={saving || isFinalized}>Final submit</button>
+              {isFinalized ? <button className="button ghost" onClick={reopenFinal} disabled={saving}>Reopen</button> : null}
             </div>
-          </div>
-        )}
-      </section>
-
-      <section className="card" style={{ marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Evidence comments</h2>
-        {commentsByDimension.length === 0 ? (
-          <p className="meta">No evidence comments were provided.</p>
+          </>
         ) : (
-          <div className="grid" style={{ gap: 10 }}>
-            {commentsByDimension.map((c) => (
-              <div key={`comments-${c.dimension}`} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10 }}>
-                <strong>{c.dimension}</strong>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Manager Score:</strong> {c.managerScore ?? "-"}</div>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Self Score:</strong> {c.selfScore ?? "-"}</div>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Average Score:</strong> {c.averageScore ?? "-"}</div>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Gap (Manager - Self):</strong> {formatGap(c.gap)}</div>
-                <div className="meta" style={{ marginTop: 6 }}><strong>Comments:</strong> {[
-                  c.manager.length ? `Manager: ${c.manager.join(" | ")}` : "Manager: No comment",
-                  c.self.length ? `Self: ${c.self.join(" | ")}` : "Self: No comment",
-                ].join("  •  ")}</div>
-              </div>
-            ))}
-          </div>
+          <p className="meta">Loading capability...</p>
         )}
+
+        {status ? <p className="meta" style={{ marginTop: 10 }}>{status}</p> : null}
       </section>
 
       <section className="card">
@@ -469,10 +265,9 @@ export default function Assessment360CyclePage() {
           <textarea className="input" value={plan30} onChange={(e) => setPlan30(e.target.value)} placeholder="30-day actions" rows={3} />
           <textarea className="input" value={plan60} onChange={(e) => setPlan60(e.target.value)} placeholder="60-day actions" rows={3} />
           <textarea className="input" value={plan90} onChange={(e) => setPlan90(e.target.value)} placeholder="90-day actions" rows={3} />
-          <button className="button print-hide" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
+          <button className="button" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
         </div>
       </section>
-      </div>
     </main>
   );
 }

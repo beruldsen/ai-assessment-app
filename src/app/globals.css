@@ -10,6 +10,7 @@
   --primary-ink: #ffffff;
   --success: #16a34a;
   --danger: #dc2626;
+  --brand-accent: #7c3aed;
 }
 
 @theme inline {
@@ -104,7 +105,28 @@ body {
 .step.active { background: #dbeafe; color: #1d4ed8; font-weight: 700; }
 
 .scoreBar { height: 8px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
-.scoreBar > span { display: block; height: 100%; background: #2563eb; }
+.scoreBar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--primary), var(--brand-accent)); }
+
+.wizard-card {
+  animation: wizard-fade-slide 220ms ease;
+}
+
+@keyframes wizard-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-card {
+    animation: none;
+  }
+}
 
 @media print {
   body { background: #fff !important; }
