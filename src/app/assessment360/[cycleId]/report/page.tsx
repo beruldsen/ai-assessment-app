@@ -15,6 +15,10 @@ type ApiResponse = {
     title: string;
     participant_name: string;
   };
+  submissions: Array<{
+    rater_type: RaterType;
+    status: "draft" | "final_submitted";
+  }>;
   responses: Array<{
     rater_type: RaterType;
     question_id: string;
@@ -95,8 +99,15 @@ export default function AssessmentReportPage() {
     load();
   }, [cycleId]);
 
+  const isReportReady = useMemo(() => {
+    if (!data?.submissions?.length) return false;
+    const selfFinal = data.submissions.find((s) => s.rater_type === "self")?.status === "final_submitted";
+    const managerFinal = data.submissions.find((s) => s.rater_type === "manager")?.status === "final_submitted";
+    return selfFinal && managerFinal;
+  }, [data]);
+
   const advancedSummary = useMemo(() => {
-    if (!data) return null;
+    if (!data || !isReportReady) return null;
 
     const byDimension = new Map<string, { self: number[]; manager: number[]; all: number[] }>();
     for (const r of data.responses) {
@@ -123,7 +134,7 @@ export default function AssessmentReportPage() {
     const byGap = [...rows].sort((a, b) => b.absGap - a.absGap);
 
     return { rows, strengths, development, byGap };
-  }, [data]);
+  }, [data, isReportReady]);
 
   const reportRows = useMemo(() => {
     if (!advancedSummary) return [];
@@ -169,7 +180,16 @@ export default function AssessmentReportPage() {
         </div>
       </section>
 
-      <div className="print-report">
+      {!isReportReady ? (
+        <section className="card" style={{ marginBottom: 12 }}>
+          <h2 style={{ marginTop: 0 }}>Report not ready yet</h2>
+          <p className="meta">The report is generated only after both self and manager complete their assessments.</p>
+          <p className="meta">Current status: {data?.submissions?.map((s) => `${s.rater_type}: ${s.status}`).join(" · ") || "waiting for submissions"}</p>
+          <Link href={`/assessment360/${cycleId}`} className="button ghost" style={{ textDecoration: "none" }}>Back to assessment</Link>
+        </section>
+      ) : null}
+
+      <div className="print-report" style={{ display: isReportReady ? "block" : "none" }}>
         <section className="card" style={{ marginBottom: 12 }}>
           <h2 style={{ marginTop: 0 }}>Visual report</h2>
           {!advancedSummary || advancedSummary.rows.length === 0 ? <p className="meta">{status || "No ratings yet."}</p> : (

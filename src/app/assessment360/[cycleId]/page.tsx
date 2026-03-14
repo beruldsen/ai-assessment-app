@@ -48,6 +48,7 @@ export default function Assessment360CyclePage() {
 
   const [tab, setTab] = useState<RaterType>("self");
   const [currentStep, setCurrentStep] = useState(0);
+  const [completed, setCompleted] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [saving, setSaving] = useState(false);
@@ -80,6 +81,7 @@ export default function Assessment360CyclePage() {
       setStatus(`error: ${message}`);
       return;
     }
+
     const payload = json as ApiResponse;
     setData(payload);
     setStrengthsText(payload.actionPlan?.strengths ?? "");
@@ -107,39 +109,24 @@ export default function Assessment360CyclePage() {
     setScores(nextScores);
     setComments(nextComments);
     setCurrentStep(0);
+    setCompleted(false);
   }, [tab, data]);
 
-  const currentSubmission = useMemo(
-    () => data?.submissions.find((s) => s.rater_type === tab) ?? null,
-    [data, tab],
-  );
-
+  const currentSubmission = useMemo(() => data?.submissions.find((s) => s.rater_type === tab) ?? null, [data, tab]);
   const isFinalized = currentSubmission?.status === "final_submitted";
+
   const completion = useMemo(() => {
     const done = ASSESSMENT_360_QUESTIONS.filter((q) => Number(scores[q.id]) >= 1 && Number(scores[q.id]) <= 5).length;
     return { done, total: ASSESSMENT_360_QUESTIONS.length, percent: Math.round((done / ASSESSMENT_360_QUESTIONS.length) * 100) };
   }, [scores]);
 
-  function goNext() {
-    setCurrentStep((s) => Math.min(s + 1, totalSteps - 1));
-  }
-
-  function goPrev() {
-    setCurrentStep((s) => Math.max(s - 1, 0));
-  }
-
-  async function saveRatings(mode: "draft" | "final") {
+  async function persistAnswers(mode: "draft" | "final") {
     const answers = ASSESSMENT_360_QUESTIONS
       .map((q) => ({ questionId: q.id, score: Number(scores[q.id]), comment: comments[q.id] ?? "" }))
       .filter((a) => Number.isFinite(a.score) && a.score >= 1 && a.score <= 5);
 
-    if (mode === "final" && answers.length !== ASSESSMENT_360_QUESTIONS.length) {
-      return setStatus("Please complete all capability ratings before final submit.");
-    }
+    if (answers.length === 0) return { ok: false, message: "Please score at least one capability before saving." };
 
-    if (answers.length === 0) return setStatus("Please score at least one capability before saving.");
-
-    setSaving(true);
     const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
@@ -147,10 +134,43 @@ export default function Assessment360CyclePage() {
     });
 
     const json = await res.json();
-    setSaving(false);
-    if (!res.ok) return setStatus(`error: ${json.error ?? "failed"}`);
+    if (!res.ok) return { ok: false, message: `error: ${json.error ?? "failed"}` };
     await load();
-    setStatus(mode === "final" ? `Final submitted for ${tab}.` : `Saved draft for ${tab}.`);
+    return { ok: true, message: mode === "final" ? `Assessment completed for ${tab}.` : `Saved ${currentCapability?.capability}.` };
+  }
+
+  async function saveAndNext() {
+    if (!currentQuestion) return;
+    if (isFinalized) return;
+
+    const currentScore = Number(scores[currentQuestion.id]);
+    if (!(currentScore >= 1 && currentScore <= 5)) {
+      setStatus("Please select a score before continuing.");
+      return;
+    }
+
+    setSaving(true);
+    const lastStep = currentStep === totalSteps - 1;
+    const result = await persistAnswers(lastStep ? "final" : "draft");
+    setSaving(false);
+
+    if (!result.ok) {
+      setStatus(result.message);
+      return;
+    }
+
+    if (lastStep) {
+      setCompleted(true);
+      setStatus("Assessment completed. All capability scores are saved and ready for reporting.");
+      return;
+    }
+
+    setCurrentStep((s) => Math.min(s + 1, totalSteps - 1));
+    setStatus("");
+  }
+
+  function goPrev() {
+    setCurrentStep((s) => Math.max(s - 1, 0));
   }
 
   async function reopenFinal() {
@@ -167,6 +187,7 @@ export default function Assessment360CyclePage() {
     const json = await res.json();
     if (!res.ok) return setStatus(`error: ${json.error ?? "failed"}`);
     await load();
+    setCompleted(false);
     setStatus(`${tab} reopened to draft.`);
   }
 
@@ -197,7 +218,7 @@ export default function Assessment360CyclePage() {
           </div>
           <Link href={`/assessment360/${cycleId}/report`} className="button ghost" style={{ textDecoration: "none" }}>Open report page</Link>
         </div>
-        <p className="meta">Purpose: development-first feedback, not punitive scoring.</p>
+
         <p className="meta">Your role: {data?.viewerRole ?? "unknown"}</p>
         <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total} · status: {currentSubmission?.status ?? "not started"}</p>
 
@@ -210,52 +231,61 @@ export default function Assessment360CyclePage() {
         </div>
       </section>
 
-      <section className="card wizard-card" style={{ marginBottom: 12 }} key={`${tab}-${currentCapability?.id}`}>
-        {currentCapability && currentQuestion ? (
-          <>
-            <h2 style={{ marginTop: 0 }}>{currentStep + 1}. {currentCapability.capability}</h2>
-            <ul className="meta" style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18 }}>
-              {currentCapability.behaviors.map((b, i) => <li key={`${currentCapability.id}-${i}`} style={{ marginBottom: 4 }}>{b}</li>)}
-            </ul>
+      {completed || isFinalized ? (
+        <section className="card wizard-card" style={{ marginBottom: 12 }}>
+          <h2 style={{ marginTop: 0 }}>Assessment Completed ✅</h2>
+          <p className="meta">All capability scores for <strong>{tab}</strong> are saved and ready for reporting.</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <Link href={`/assessment360/${cycleId}/report`} className="button" style={{ textDecoration: "none" }}>Open report</Link>
+            <button className="button ghost" onClick={() => { setCompleted(false); setCurrentStep(totalSteps - 1); }}>Review answers</button>
+            {isFinalized ? <button className="button ghost" onClick={reopenFinal}>Reopen assessment</button> : null}
+          </div>
+        </section>
+      ) : (
+        <section className="card wizard-card" style={{ marginBottom: 12 }} key={`${tab}-${currentCapability?.id}`}>
+          {currentCapability && currentQuestion ? (
+            <>
+              <h2 style={{ marginTop: 0 }}>{currentStep + 1}. {currentCapability.capability}</h2>
+              <ul className="meta" style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18 }}>
+                {currentCapability.behaviors.map((b, i) => <li key={`${currentCapability.id}-${i}`} style={{ marginBottom: 4 }}>{b}</li>)}
+              </ul>
 
-            <div style={{ display: "grid", gap: 8 }}>
-              <select
-                className="select"
-                value={scores[currentQuestion.id] ?? ""}
-                disabled={isFinalized}
-                onChange={(e) => setScores((s) => ({ ...s, [currentQuestion.id]: Number(e.target.value) }))}
-              >
-                <option value="">Score (1-5)</option>
-                <option value="1">1 - Rarely demonstrated</option>
-                <option value="2">2 - Occasionally demonstrated</option>
-                <option value="3">3 - Consistently demonstrated</option>
-                <option value="4">4 - Strong capability / frequently demonstrated</option>
-                <option value="5">5 - Role model / consistently drives impact</option>
-              </select>
+              <div style={{ display: "grid", gap: 8 }}>
+                <select
+                  className="select"
+                  value={scores[currentQuestion.id] ?? ""}
+                  disabled={isFinalized}
+                  onChange={(e) => setScores((s) => ({ ...s, [currentQuestion.id]: Number(e.target.value) }))}
+                >
+                  <option value="">Score (1-5)</option>
+                  <option value="1">1 - Rarely demonstrated</option>
+                  <option value="2">2 - Occasionally demonstrated</option>
+                  <option value="3">3 - Consistently demonstrated</option>
+                  <option value="4">4 - Strong capability / frequently demonstrated</option>
+                  <option value="5">5 - Role model / consistently drives impact</option>
+                </select>
 
-              <input
-                className="input"
-                value={comments[currentQuestion.id] ?? ""}
-                disabled={isFinalized}
-                onChange={(e) => setComments((c) => ({ ...c, [currentQuestion.id]: e.target.value }))}
-                placeholder="Optional evidence comment"
-              />
-            </div>
+                <input
+                  className="input"
+                  value={comments[currentQuestion.id] ?? ""}
+                  disabled={isFinalized}
+                  onChange={(e) => setComments((c) => ({ ...c, [currentQuestion.id]: e.target.value }))}
+                  placeholder="Optional evidence comment"
+                />
+              </div>
 
-            <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="button ghost" onClick={goPrev} disabled={currentStep === 0}>Back</button>
-              <button className="button ghost" onClick={goNext} disabled={currentStep === totalSteps - 1}>Next</button>
-              <button className="button ghost" onClick={() => saveRatings("draft")} disabled={saving || isFinalized}>Save draft</button>
-              <button className="button" onClick={() => saveRatings("final")} disabled={saving || isFinalized}>Final submit</button>
-              {isFinalized ? <button className="button ghost" onClick={reopenFinal} disabled={saving}>Reopen</button> : null}
-            </div>
-          </>
-        ) : (
-          <p className="meta">Loading capability...</p>
-        )}
-
-        {status ? <p className="meta" style={{ marginTop: 10 }}>{status}</p> : null}
-      </section>
+              <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="button ghost" onClick={goPrev} disabled={currentStep === 0 || saving}>Back</button>
+                <button className="button" onClick={saveAndNext} disabled={saving || isFinalized}>
+                  {currentStep === totalSteps - 1 ? "Complete assessment" : "Submit score and next"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="meta">Loading capability...</p>
+          )}
+        </section>
+      )}
 
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Development action plan (30/60/90)</h2>
@@ -268,6 +298,8 @@ export default function Assessment360CyclePage() {
           <button className="button" onClick={saveActionPlan} disabled={savingPlan}>{savingPlan ? "Saving..." : "Save action plan"}</button>
         </div>
       </section>
+
+      {status ? <p className="meta" style={{ marginTop: 10 }}>{status}</p> : null}
     </main>
   );
 }
