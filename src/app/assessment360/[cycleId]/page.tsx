@@ -221,7 +221,7 @@ export default function Assessment360CyclePage() {
       <h1 className="title">Future SE 180° Assessment Cycle</h1>
       <p className="subtitle">{data ? `${data.cycle.title} · ${data.cycle.participant_name}` : "Loading..."}</p>
 
-      <section className="card" style={{ marginBottom: 12 }}>
+      <section className="card surface-hero" style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <div className="progress" style={{ marginBottom: 10 }}>
             <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")}>Self</button>
@@ -231,7 +231,16 @@ export default function Assessment360CyclePage() {
         </div>
 
         <p className="meta">Your role: {data?.viewerRole ?? "unknown"}</p>
+        {data?.viewerRole === "admin" ? <span className="badge">Admin test mode</span> : null}
         <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total} · status: {currentSubmission?.status ?? "not started"}</p>
+
+        <div className="stepDots">
+          {ASSESSMENT_180_CAPABILITIES.map((c, i) => {
+            const scored = Number(scores[c.id]) >= 1 && Number(scores[c.id]) <= 5;
+            const cls = i === currentStep ? "stepDot active" : scored ? "stepDot done" : "stepDot";
+            return <span key={c.id} className={cls}>{i + 1}</span>;
+          })}
+        </div>
 
         <div style={{ marginTop: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -288,7 +297,7 @@ export default function Assessment360CyclePage() {
               <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button className="button ghost" onClick={goPrev} disabled={currentStep === 0 || saving}>Back</button>
                 <button className="button" onClick={saveAndNext} disabled={saving || isFinalized}>
-                  {currentStep === totalSteps - 1 ? "Complete assessment" : "Submit score and next"}
+                  {saving ? "Saving..." : currentStep === totalSteps - 1 ? "Complete assessment" : "Submit score and next"}
                 </button>
               </div>
             </>

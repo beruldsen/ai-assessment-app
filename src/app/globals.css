@@ -1,15 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f7fb;
+  --background: #f8fafc;
   --foreground: #0f172a;
   --card: #ffffff;
   --muted: #64748b;
   --border: #dbe4f0;
-  --primary: #2563eb;
+  --primary: #4f46e5;
+  --secondary: #06b6d4;
   --primary-ink: #ffffff;
-  --success: #16a34a;
-  --danger: #dc2626;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
   --brand-accent: #7c3aed;
 }
 
@@ -45,6 +47,28 @@ body {
   padding: 14px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
+
+.surface-hero {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(6, 182, 212, 0.08));
+  border: 1px solid rgba(79, 70, 229, 0.18);
+}
+
+.kpiGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.kpiCard {
+  border-radius: 12px;
+  padding: 10px;
+  color: #0f172a;
+  border: 1px solid transparent;
+}
+.kpiCard.primary { background: #eef2ff; border-color: #c7d2fe; }
+.kpiCard.secondary { background: #ecfeff; border-color: #a5f3fc; }
+.kpiCard.warning { background: #fffbeb; border-color: #fde68a; }
+.kpiCard.success { background: #ecfdf5; border-color: #a7f3d0; }
 
 .grid { display: grid; gap: 12px; }
 .two-col { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -101,8 +125,24 @@ body {
 .meta { color: var(--muted); font-size: 12px; }
 
 .progress { display: flex; gap: 8px; flex-wrap: wrap; }
-.step { padding: 4px 8px; border-radius: 8px; background: #eef2f7; color: #334155; font-size: 12px; }
-.step.active { background: #dbeafe; color: #1d4ed8; font-weight: 700; }
+.step { padding: 6px 10px; border-radius: 10px; background: #eef2f7; color: #334155; font-size: 12px; border: 0; cursor: pointer; }
+.step.active { background: #e0e7ff; color: #3730a3; font-weight: 700; }
+
+.stepDots { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.stepDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.stepDot.done { background: #dcfce7; border-color: #86efac; color: #166534; }
+.stepDot.active { background: #e0e7ff; border-color: #a5b4fc; color: #3730a3; font-weight: 700; }
 
 .scoreBar { height: 8px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
 .scoreBar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--primary), var(--brand-accent)); }

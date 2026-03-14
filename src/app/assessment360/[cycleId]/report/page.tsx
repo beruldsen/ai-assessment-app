@@ -172,7 +172,7 @@ export default function AssessmentReportPage() {
       <h1 className="title">180° Assessment Report</h1>
       <p className="subtitle">{data ? `${data.cycle.title} · ${data.cycle.participant_name}` : "Loading..."}</p>
 
-      <section className="card" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <section className="card surface-hero" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <p className="meta" style={{ margin: 0 }}>Dedicated reporting page with capability trends and gaps.</p>
         <div style={{ display: "flex", gap: 8 }}>
           <Link href={`/assessment360/${cycleId}`} className="button ghost" style={{ textDecoration: "none" }}>Back to assessment</Link>
@@ -220,12 +220,12 @@ export default function AssessmentReportPage() {
             <p className="meta">No ratings yet.</p>
           ) : (
             <div className="grid" style={{ gap: 10 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(120px, 1fr))", gap: 8 }}>
-                <div className="card"><strong>Overall self</strong><div className="meta">{executiveSummary.overallSelf}/5</div></div>
-                <div className="card"><strong>Overall manager</strong><div className="meta">{executiveSummary.overallManager}/5</div></div>
-                <div className="card"><strong>Net gap (manager - self)</strong><div className="meta">{formatGap(executiveSummary.netGap)}</div></div>
-                <div className="card"><strong>Biggest mismatch</strong><div className="meta">{executiveSummary.biggestGap?.dimension ?? "-"}</div></div>
-                <div className="card"><strong>Coverage</strong><div className="meta">{advancedSummary.rows.filter((r) => r.selfAvg !== null && r.managerAvg !== null).length}/{ASSESSMENT_180_CAPABILITIES.length} both rated</div></div>
+              <div className="kpiGrid">
+                <div className="kpiCard primary"><strong>Overall self</strong><div className="meta">{executiveSummary.overallSelf}/5</div></div>
+                <div className="kpiCard secondary"><strong>Overall manager</strong><div className="meta">{executiveSummary.overallManager}/5</div></div>
+                <div className="kpiCard warning"><strong>Net gap (manager - self)</strong><div className="meta">{formatGap(executiveSummary.netGap)}</div></div>
+                <div className="kpiCard warning"><strong>Biggest mismatch</strong><div className="meta">{executiveSummary.biggestGap?.dimension ?? "-"}</div></div>
+                <div className="kpiCard success"><strong>Coverage</strong><div className="meta">{advancedSummary.rows.filter((r) => r.selfAvg !== null && r.managerAvg !== null).length}/{ASSESSMENT_180_CAPABILITIES.length} both rated</div></div>
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
