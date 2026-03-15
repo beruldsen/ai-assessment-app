@@ -131,6 +131,40 @@ export async function POST(req: Request) {
   const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
   const cycleUrl = `${origin}/assessment360/${data.id}`;
 
+  const inviteTargets: Array<Pick<ParticipantRow, "role" | "email" | "name">> = [
+    { role: "self", email: selfEmail, name: body.selfName.trim() },
+    { role: "manager", email: managerEmail, name: body.managerName.trim() },
+  ];
+
+  const inviteUpdates: ParticipantRow[] = [];
+
+  for (const target of inviteTargets) {
+    const { error: inviteErr } = await supabaseServer.auth.signInWithOtp({
+      email: target.email,
+      options: {
+        emailRedirectTo: cycleUrl,
+      },
+    });
+
+    inviteUpdates.push({
+      cycle_id: data.id,
+      role: target.role,
+      name: target.name,
+      email: target.email,
+      invite_status: inviteErr ? "failed" : "sent",
+      invite_sent_at: inviteErr ? null : new Date().toISOString(),
+      invite_error: inviteErr ? inviteErr.message : null,
+    });
+  }
+
+  const { error: invitePersistErr } = await supabaseServer
+    .from("assessment360_cycle_participants")
+    .upsert(inviteUpdates, { onConflict: "cycle_id,email" });
+
+  if (invitePersistErr) return NextResponse.json({ error: invitePersistErr.message }, { status: 500 });
+
+  const failedCount = inviteUpdates.filter((i) => i.invite_status === "failed").length;
+
   return NextResponse.json({
     cycleId: data.id,
     links: {
@@ -138,6 +172,10 @@ export async function POST(req: Request) {
       manager: cycleUrl,
       login: `${origin}/login`,
     },
-    message: "Cycle created. Invite sending is disabled; share login + cycle link manually.",
+    inviteResults: inviteUpdates.map((i) => ({ role: i.role, email: i.email, status: i.invite_status, error: i.invite_error })),
+    message:
+      failedCount === 0
+        ? "Cycle created and invite emails sent to self + manager."
+        : `Cycle created, but ${failedCount} invite email(s) failed. See inviteResults for details.`,
   });
 }
