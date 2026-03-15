@@ -111,12 +111,24 @@ export default function AssessmentReportPage() {
   const advancedSummary = useMemo(() => {
     if (!data || !isReportReady) return null;
 
-    const byDimension = new Map<string, { self: number[]; manager: number[]; all: number[] }>();
+    const byDimension = new Map<string, {
+      self: number[];
+      manager: number[];
+      all: number[];
+      selfComments: string[];
+      managerComments: string[];
+    }>();
     for (const r of data.responses) {
-      const bucket = byDimension.get(r.dimension) ?? { self: [], manager: [], all: [] };
+      const bucket = byDimension.get(r.dimension) ?? { self: [], manager: [], all: [], selfComments: [], managerComments: [] };
       bucket.all.push(r.score);
-      if (r.rater_type === "self") bucket.self.push(r.score);
-      if (r.rater_type === "manager") bucket.manager.push(r.score);
+      if (r.rater_type === "self") {
+        bucket.self.push(r.score);
+        if (r.comment?.trim()) bucket.selfComments.push(r.comment.trim());
+      }
+      if (r.rater_type === "manager") {
+        bucket.manager.push(r.score);
+        if (r.comment?.trim()) bucket.managerComments.push(r.comment.trim());
+      }
       byDimension.set(r.dimension, bucket);
     }
 
@@ -128,7 +140,17 @@ export default function AssessmentReportPage() {
       const overallAvg = avg(vals.all) ?? 0;
       const averageScore = selfAvg !== null && managerAvg !== null ? Number(((selfAvg + managerAvg) / 2).toFixed(2)) : null;
       const gap = selfAvg !== null && managerAvg !== null ? Number((selfAvg - managerAvg).toFixed(2)) : null;
-      return { dimension, selfAvg, managerAvg, overallAvg, averageScore, gap, absGap: gap === null ? 0 : Math.abs(gap) };
+      return {
+        dimension,
+        selfAvg,
+        managerAvg,
+        overallAvg,
+        averageScore,
+        gap,
+        absGap: gap === null ? 0 : Math.abs(gap),
+        selfComment: vals.selfComments[0] ?? null,
+        managerComment: vals.managerComments[0] ?? null,
+      };
     });
 
     const strengths = [...rows].sort((a, b) => b.overallAvg - a.overallAvg).slice(0, 3);
@@ -230,6 +252,15 @@ export default function AssessmentReportPage() {
                 <div className="kpiCard success"><strong>Coverage</strong><div className="meta">{advancedSummary.rows.filter((r) => r.selfAvg !== null && r.managerAvg !== null).length}/{ASSESSMENT_180_CAPABILITIES.length} both rated</div></div>
               </div>
 
+              <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
+                <strong>Insight summary</strong>
+                <ul className="meta" style={{ margin: "8px 0 0 0", paddingLeft: 18 }}>
+                  <li>Strongest capability currently: <strong>{executiveSummary.strongest?.dimension ?? "-"}</strong>.</li>
+                  <li>Largest alignment gap: <strong>{executiveSummary.biggestGap?.dimension ?? "-"}</strong> (manager - self {formatGap(executiveSummary.biggestGap?.gap ?? null)}).</li>
+                  <li>Top development focus: <strong>{advancedSummary.development[0]?.dimension ?? "-"}</strong>.</li>
+                </ul>
+              </div>
+
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <label className="meta">Sort by</label>
                 <select className="select" value={sortBy} onChange={(e) => setSortBy(e.target.value as "gap" | "self" | "manager" | "capability") }>
@@ -249,6 +280,7 @@ export default function AssessmentReportPage() {
                       <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Manager</th>
                       <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Average Score</th>
                       <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap (Manager - Self)</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Comment highlights</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -259,6 +291,10 @@ export default function AssessmentReportPage() {
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.managerAvg ?? "-"}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.averageScore ?? "-"}</td>
                         <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{formatGap(r.gap)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px", maxWidth: 340 }}>
+                          <div className="meta">Self: {r.selfComment ?? "-"}</div>
+                          <div className="meta">Manager: {r.managerComment ?? "-"}</div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -44,6 +44,7 @@ export default function Assessment360CyclePage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
 
@@ -82,6 +83,17 @@ export default function Assessment360CyclePage() {
 
   useEffect(() => {
     if (!data) return;
+
+    const role = data.viewerRole;
+    if (role === "self" && tab !== "self") {
+      setTab("self");
+      return;
+    }
+    if (role === "manager" && tab !== "manager") {
+      setTab("manager");
+      return;
+    }
+
     const filtered = data.responses.filter((r) => r.rater_type === tab);
     const nextScores: Record<string, number> = {};
     const nextComments: Record<string, string> = {};
@@ -99,6 +111,12 @@ export default function Assessment360CyclePage() {
       prevTabRef.current = tab;
     }
   }, [tab, data]);
+
+  const availableTabs = useMemo(() => {
+    if (data?.viewerRole === "self") return ["self"] as RaterType[];
+    if (data?.viewerRole === "manager") return ["manager"] as RaterType[];
+    return ["self", "manager"] as RaterType[];
+  }, [data?.viewerRole]);
 
   const currentSubmission = useMemo(() => data?.submissions.find((s) => s.rater_type === tab) ?? null, [data, tab]);
   const isFinalized = currentSubmission?.status === "final_submitted";
@@ -123,8 +141,10 @@ export default function Assessment360CyclePage() {
 
     const json = await res.json();
     if (!res.ok) return { ok: false, message: `error: ${json.error ?? "failed"}` };
+    const savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    setLastSavedAt(savedAt);
     await load();
-    return { ok: true, message: mode === "final" ? `Assessment completed for ${tab}.` : `Saved ${currentCapability?.capability}.` };
+    return { ok: true, message: mode === "final" ? `Assessment completed for ${tab}.` : `Saved ${currentCapability?.capability} at ${savedAt}.` };
   }
 
   async function saveAndNext() {
@@ -134,6 +154,12 @@ export default function Assessment360CyclePage() {
     const currentScore = Number(scores[currentQuestion.id]);
     if (!(currentScore >= 1 && currentScore <= 5)) {
       setStatus("Please select a score before continuing.");
+      return;
+    }
+
+    const currentComment = (comments[currentQuestion.id] ?? "").trim();
+    if ((currentScore <= 2 || currentScore >= 4) && currentComment.length < 8) {
+      setStatus("For very high or low scores, please add a brief evidence comment before continuing.");
       return;
     }
 
@@ -191,9 +217,17 @@ export default function Assessment360CyclePage() {
 
       <section className="card surface-hero" style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <div className="progress" style={{ marginBottom: 10 }}>
-            <button className={`step ${tab === "self" ? "active" : ""}`} onClick={() => setTab("self")}>Self</button>
-            <button className={`step ${tab === "manager" ? "active" : ""}`} onClick={() => setTab("manager")}>Manager</button>
+          <div>
+            <p className="meta" style={{ margin: "0 0 6px 0" }}>
+              {data?.viewerRole === "admin" ? "Admin mode: testing both perspectives" : `Assessment perspective: ${tab === "self" ? "Self reflection" : "Manager feedback"}`}
+            </p>
+            <div className="progress" style={{ marginBottom: 10 }}>
+              {availableTabs.map((roleTab) => (
+                <button key={roleTab} className={`step ${tab === roleTab ? "active" : ""}`} onClick={() => setTab(roleTab)}>
+                  {roleTab === "self" ? "Self" : "Manager"}
+                </button>
+              ))}
+            </div>
           </div>
           <Link href={`/assessment360/${cycleId}/report`} className="button ghost" style={{ textDecoration: "none" }}>Open report page</Link>
         </div>
@@ -201,6 +235,7 @@ export default function Assessment360CyclePage() {
         <p className="meta">Your role: {data?.viewerRole ?? "unknown"}</p>
         {data?.viewerRole === "admin" ? <span className="badge">Admin test mode</span> : null}
         <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total} · status: {currentSubmission?.status ?? "not started"}</p>
+        {lastSavedAt ? <p className="meta">Draft last saved at {lastSavedAt}</p> : null}
 
         <div className="stepDots">
           {ASSESSMENT_180_CAPABILITIES.map((c, i) => {
@@ -237,6 +272,12 @@ export default function Assessment360CyclePage() {
               <ul className="meta" style={{ marginTop: 0, marginBottom: 12, paddingLeft: 18 }}>
                 {currentCapability.behaviors.map((b, i) => <li key={`${currentCapability.id}-${i}`} style={{ marginBottom: 4 }}>{b}</li>)}
               </ul>
+
+              <div style={{ background: "#f8fafc", border: "1px solid var(--border)", borderRadius: 10, padding: 10, marginBottom: 10 }}>
+                <p className="meta" style={{ margin: 0 }}>
+                  Development-focused guidance: rate based on observed behaviours over the last 3–6 months. Prioritise honest reflection and specific examples over perfection.
+                </p>
+              </div>
 
               <div style={{ display: "grid", gap: 8 }}>
                 <select

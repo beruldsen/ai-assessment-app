@@ -139,10 +139,24 @@ export async function POST(req: Request) {
   const inviteUpdates: ParticipantRow[] = [];
 
   for (const target of inviteTargets) {
+    const counterpart = target.role === "self" ? body.managerName.trim() : body.selfName.trim();
     const { error: inviteErr } = await supabaseServer.auth.signInWithOtp({
       email: target.email,
       options: {
         emailRedirectTo: cycleUrl,
+        data: {
+          assessment_type: "180-degree capability assessment",
+          role: target.role,
+          recipient_name: target.name,
+          counterpart_name: counterpart,
+          cycle_title: body.title.trim(),
+          development_focus: "This assessment supports growth and capability development, not performance management.",
+          guidance:
+            target.role === "self"
+              ? "Please reflect honestly on demonstrated behaviours and use comments for specific examples."
+              : "Please rate based on observed behaviours and provide constructive, evidence-based feedback.",
+          assessment_link: cycleUrl,
+        },
       },
     });
 

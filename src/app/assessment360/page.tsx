@@ -31,6 +31,7 @@ export default function Assessment360HomePage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [createdLinks, setCreatedLinks] = useState<{ login: string; self: string; manager: string } | null>(null);
+  const [inviteResults, setInviteResults] = useState<Array<{ role: "self" | "manager"; email: string; status: "sent" | "failed"; error: string | null }>>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -58,6 +59,7 @@ export default function Assessment360HomePage() {
     if (!title.trim() || !selfName.trim() || !selfEmail.trim() || !managerName.trim() || !managerEmail.trim()) return;
     setBusy(true);
     setCreatedLinks(null);
+    setInviteResults([]);
     setStatus("creating cycle...");
 
     const res = await fetch("/api/assessment360/cycles", {
@@ -73,8 +75,9 @@ export default function Assessment360HomePage() {
       return;
     }
 
-    setStatus(json.message ?? "Cycle created. Share login and cycle links manually.");
+    setStatus(json.message ?? "Cycle created.");
     if (json.links) setCreatedLinks(json.links);
+    setInviteResults(json.inviteResults ?? []);
     setBusy(false);
     await loadCycles();
     router.push(`/assessment360/${json.cycleId}`);
@@ -117,6 +120,15 @@ export default function Assessment360HomePage() {
                 <div>Login URL: {createdLinks.login}</div>
                 <div>Cycle URL (self): {createdLinks.self}</div>
                 <div>Cycle URL (manager): {createdLinks.manager}</div>
+              </div>
+            ) : null}
+            {inviteResults.length ? (
+              <div className="meta" style={{ marginTop: 8 }}>
+                {inviteResults.map((r) => (
+                  <div key={`${r.role}-${r.email}`}>
+                    {r.role}: {r.email} → {r.status}{r.error ? ` (${r.error})` : ""}
+                  </div>
+                ))}
               </div>
             ) : null}
           </div>
