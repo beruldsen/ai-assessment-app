@@ -38,15 +38,28 @@ export async function GET(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const cycles = (data ?? []).map((row: {
+  type JoinedCycle = {
+    id: string;
+    title: string;
+    participant_name: string;
+    status: string;
+    created_at: string;
+  };
+
+  const cycles = (data ?? []).flatMap((row: {
     role: string;
     invite_status: string;
-    assessment360_cycles: Record<string, unknown>;
-  }) => ({
-    ...row.assessment360_cycles,
-    my_role: row.role,
-    invite_status: row.invite_status,
-  }));
+    assessment360_cycles: JoinedCycle[];
+  }) => {
+    const cycle = row.assessment360_cycles?.[0];
+    if (!cycle) return [];
+
+    return {
+      ...cycle,
+      my_role: row.role,
+      invite_status: row.invite_status,
+    };
+  });
   return NextResponse.json({ cycles, isAdmin: false });
 }
 

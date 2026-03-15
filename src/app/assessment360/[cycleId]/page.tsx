@@ -52,10 +52,12 @@ export default function Assessment360CyclePage() {
   const currentQuestion = ASSESSMENT_360_QUESTIONS.find((q) => q.id === currentCapability?.id);
   const prevTabRef = useRef<RaterType>(tab);
 
-  async function authHeaders() {
+  async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
   }
 
   async function load() {

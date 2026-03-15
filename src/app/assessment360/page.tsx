@@ -34,10 +34,12 @@ export default function Assessment360HomePage() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  async function authHeaders() {
+  async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
   }
 
   async function loadCycles() {
