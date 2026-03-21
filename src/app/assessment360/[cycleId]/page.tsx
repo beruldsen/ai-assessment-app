@@ -47,11 +47,13 @@ export default function Assessment360CyclePage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
   const totalSteps = ASSESSMENT_180_CAPABILITIES.length;
   const currentCapability = ASSESSMENT_180_CAPABILITIES[currentStep];
   const currentQuestion = ASSESSMENT_360_QUESTIONS.find((q) => q.id === currentCapability?.id);
   const prevTabRef = useRef<RaterType>(tab);
+  const loadRequestRef = useRef(0);
 
   async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
@@ -62,9 +64,14 @@ export default function Assessment360CyclePage() {
   }
 
   async function load() {
+    const requestId = ++loadRequestRef.current;
     setStatus("loading...");
     const res = await fetch(`/api/assessment360/cycles/${cycleId}`, { headers: await authHeaders() });
     const json = (await res.json()) as ApiResponse | { error: string };
+
+    // Ignore stale responses arriving out of order.
+    if (requestId !== loadRequestRef.current) return;
+
     if (!res.ok) {
       const message = "error" in json ? json.error : "failed";
       setStatus(`error: ${message}`);
@@ -133,14 +140,23 @@ export default function Assessment360CyclePage() {
 
     if (answers.length === 0) return { ok: false, message: "Please score at least one capability before saving." };
 
-    const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-      body: JSON.stringify({ raterType: tab, answers, mode }),
-    });
+    const submitOnce = async () => {
+      const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ raterType: tab, answers, mode }),
+      });
+      const json = await res.json();
+      return { res, json };
+    };
 
-    const json = await res.json();
-    if (!res.ok) return { ok: false, message: `error: ${json.error ?? "failed"}` };
+    let attempt = await submitOnce();
+    // Small retry for transient server/network issues.
+    if (!attempt.res.ok && attempt.res.status >= 500) {
+      attempt = await submitOnce();
+    }
+
+    if (!attempt.res.ok) return { ok: false, message: `error: ${attempt.json.error ?? "failed"}` };
     const savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setLastSavedAt(savedAt);
     await load();
@@ -149,7 +165,9 @@ export default function Assessment360CyclePage() {
 
   async function saveAndNext() {
     if (!currentQuestion) return;
-    if (isFinalized) return;
+    if (isFinalized || saving) return;
+
+    setErrorBanner(null);
 
     const currentScore = Number(scores[currentQuestion.id]);
     if (!(currentScore >= 1 && currentScore <= 5)) {
@@ -176,15 +194,18 @@ export default function Assessment360CyclePage() {
     if (!result.ok) {
       if (!lastStep) setCurrentStep(previousStep);
       setStatus(result.message);
+      setErrorBanner(result.message);
       return;
     }
 
     if (lastStep) {
       setCompleted(true);
+      setErrorBanner(null);
       setStatus("Assessment completed. All capability scores are saved and ready for reporting.");
       return;
     }
 
+    setErrorBanner(null);
     setStatus("");
   }
 
@@ -223,7 +244,12 @@ export default function Assessment360CyclePage() {
             </p>
             <div className="progress" style={{ marginBottom: 10 }}>
               {availableTabs.map((roleTab) => (
-                <button key={roleTab} className={`step ${tab === roleTab ? "active" : ""}`} onClick={() => setTab(roleTab)}>
+                <button
+                  key={roleTab}
+                  className={`step ${tab === roleTab ? "active" : ""}`}
+                  onClick={() => setTab(roleTab)}
+                  disabled={saving}
+                >
                   {roleTab === "self" ? "Self" : "Manager"}
                 </button>
               ))}
@@ -316,6 +342,11 @@ export default function Assessment360CyclePage() {
         </section>
       )}
 
+      {errorBanner ? (
+        <p className="meta" style={{ marginTop: 10, color: "#b91c1c", fontWeight: 600 }}>
+          Save issue: {errorBanner}
+        </p>
+      ) : null}
       {status ? <p className="meta" style={{ marginTop: 10 }}>{status}</p> : null}
     </main>
   );
