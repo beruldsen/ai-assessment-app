@@ -175,12 +175,6 @@ export default function Assessment360CyclePage() {
       return;
     }
 
-    const currentComment = (comments[currentQuestion.id] ?? "").trim();
-    if ((currentScore <= 2 || currentScore >= 4) && currentComment.length < 8) {
-      setStatus("For very high or low scores, please add a brief evidence comment before continuing.");
-      return;
-    }
-
     const lastStep = currentStep === totalSteps - 1;
     const previousStep = currentStep;
     if (!lastStep) {
