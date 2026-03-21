@@ -99,7 +99,7 @@ export default function Assessment360HomePage() {
     setInviteResults(json.inviteResults ?? []);
     setBusy(false);
     await loadCycles();
-    router.push(`/assessment360/${json.cycleId}`);
+    router.push(`/assessment360/${json.cycleId}?as=admin`);
   }
 
   return (
@@ -169,7 +169,12 @@ export default function Assessment360HomePage() {
         ) : (
           <div className="grid">
             {cycles.map((c) => (
-              <button key={c.id} className="button ghost" style={{ textAlign: "left" }} onClick={() => router.push(`/assessment360/${c.id}`)}>
+              <button
+                key={c.id}
+                className="button ghost"
+                style={{ textAlign: "left" }}
+                onClick={() => router.push(isAdmin ? `/assessment360/${c.id}?as=admin` : `/assessment360/${c.id}`)}
+              >
                 <strong>{c.title}</strong>
                 <div className="meta">{c.participant_name} · {new Date(c.created_at).toLocaleString()} {c.my_role ? `· role: ${c.my_role}` : ""}</div>
                 {isAdmin && c.assessment360_cycle_participants ? (

@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { ASSESSMENT_180_CAPABILITIES, ASSESSMENT_360_QUESTIONS, type RaterType } from "@/lib/assessment360";
 
@@ -36,7 +36,9 @@ type ApiResponse = {
 
 export default function Assessment360CyclePage() {
   const params = useParams<{ cycleId: string }>();
+  const searchParams = useSearchParams();
   const cycleId = String(params.cycleId ?? "");
+  const asMode = searchParams.get("as");
 
   const [tab, setTab] = useState<RaterType>("self");
   const [currentStep, setCurrentStep] = useState(0);
@@ -66,7 +68,8 @@ export default function Assessment360CyclePage() {
   async function load() {
     const requestId = ++loadRequestRef.current;
     setStatus("loading...");
-    const res = await fetch(`/api/assessment360/cycles/${cycleId}`, { headers: await authHeaders() });
+    const modeQuery = asMode ? `?as=${encodeURIComponent(asMode)}` : "";
+    const res = await fetch(`/api/assessment360/cycles/${cycleId}${modeQuery}`, { headers: await authHeaders() });
     const json = (await res.json()) as ApiResponse | { error: string };
 
     // Ignore stale responses arriving out of order.
@@ -86,7 +89,17 @@ export default function Assessment360CyclePage() {
   useEffect(() => {
     if (!cycleId) return;
     load();
-  }, [cycleId]);
+
+    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        load();
+      }
+    });
+
+    return () => {
+      authSub.subscription.unsubscribe();
+    };
+  }, [cycleId, asMode]);
 
   useEffect(() => {
     if (!data) return;

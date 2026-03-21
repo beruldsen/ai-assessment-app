@@ -9,13 +9,19 @@ export async function GET(req: Request, ctx: Ctx) {
   const user = await getRequestUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const url = new URL(req.url);
+  const forceAdmin = url.searchParams.get("as") === "admin";
+
   const admin = await isAssessmentAdmin(user.email);
   const hasParticipants = await cycleHasParticipants(cycleId);
   const participantRole = hasParticipants ? await getCycleRole(cycleId, user.email) : null;
 
   let viewerRole: "self" | "manager" | "admin" | null = null;
-  if (participantRole) {
-    // Participant role takes precedence when a user is both participant and admin.
+  if (forceAdmin && admin) {
+    viewerRole = "admin";
+  } else if (participantRole) {
+    // Participant role takes precedence when a user is both participant and admin,
+    // unless explicitly forcing admin mode from the admin console.
     viewerRole = participantRole;
   } else if (admin) {
     viewerRole = "admin";
