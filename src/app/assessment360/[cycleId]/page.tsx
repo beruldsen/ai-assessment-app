@@ -56,6 +56,7 @@ export default function Assessment360CyclePage() {
   const currentQuestion = ASSESSMENT_360_QUESTIONS.find((q) => q.id === currentCapability?.id);
   const prevTabRef = useRef<RaterType>(tab);
   const loadRequestRef = useRef(0);
+  const authHydratedRef = useRef(false);
 
   async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
@@ -88,7 +89,53 @@ export default function Assessment360CyclePage() {
 
   useEffect(() => {
     if (!cycleId) return;
-    load();
+
+    const hydrateAuthFromInvite = async () => {
+      if (authHydratedRef.current) return;
+      authHydratedRef.current = true;
+
+      try {
+        const url = new URL(window.location.href);
+        const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
+        const hashParams = new URLSearchParams(hash);
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+
+        const code = url.searchParams.get("code");
+        const tokenHash = url.searchParams.get("token_hash");
+        const type = url.searchParams.get("type");
+
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+          return;
+        }
+
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+          url.searchParams.delete("code");
+          url.searchParams.delete("type");
+          url.searchParams.delete("next");
+          window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+          return;
+        }
+
+        if (tokenHash && type) {
+          const otpType = type === "magiclink" ? "email" : type;
+          await supabase.auth.verifyOtp({ token_hash: tokenHash, type: otpType as "email" | "recovery" | "invite" | "email_change" });
+          url.searchParams.delete("token_hash");
+          url.searchParams.delete("type");
+          url.searchParams.delete("next");
+          window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+        }
+      } catch {
+        // Continue with normal auth flow and status messaging.
+      }
+    };
+
+    hydrateAuthFromInvite().finally(() => {
+      load();
+    });
 
     const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
