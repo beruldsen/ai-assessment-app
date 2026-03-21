@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -35,6 +35,16 @@ export default function Assessment360HomePage() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const selfEmailValid = emailRegex.test(selfEmail.trim());
+  const managerEmailValid = emailRegex.test(managerEmail.trim());
+  const sameEmail = selfEmail.trim().toLowerCase() === managerEmail.trim().toLowerCase() && selfEmail.trim() !== "";
+
+  const createDisabled = useMemo(
+    () => busy || !title.trim() || !selfName.trim() || !selfEmail.trim() || !managerName.trim() || !managerEmail.trim() || !selfEmailValid || !managerEmailValid || sameEmail,
+    [busy, title, selfName, selfEmail, managerName, managerEmail, selfEmailValid, managerEmailValid, sameEmail],
+  );
+
   async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -55,8 +65,17 @@ export default function Assessment360HomePage() {
     loadCycles();
   }, []);
 
+  function inviteTone(statusValue: "pending" | "sent" | "failed") {
+    if (statusValue === "sent") return "#166534";
+    if (statusValue === "failed") return "#b91c1c";
+    return "#475569";
+  }
+
   async function createCycleAsAdmin() {
-    if (!title.trim() || !selfName.trim() || !selfEmail.trim() || !managerName.trim() || !managerEmail.trim()) return;
+    if (createDisabled) {
+      setStatus("Please complete all fields with valid emails before creating a cycle.");
+      return;
+    }
     setBusy(true);
     setCreatedLinks(null);
     setInviteResults([]);
@@ -87,6 +106,7 @@ export default function Assessment360HomePage() {
     <main className="page">
       <h1 className="title">Future SE 180° Assessment</h1>
       <p className="subtitle">Admin-managed self + manager assignments (manual link sharing mode).</p>
+      <p className="meta" style={{ marginTop: -4 }}>Tip: open cycles from this list to avoid invalid route IDs.</p>
 
       {isAdmin ? (
         <section className="card grid" style={{ marginBottom: 14 }}>
@@ -101,6 +121,7 @@ export default function Assessment360HomePage() {
           <label>
             Self participant email
             <input className="input" value={selfEmail} onChange={(e) => setSelfEmail(e.target.value)} placeholder="alex@company.com" disabled={busy} />
+            {selfEmail.trim() && !selfEmailValid ? <div className="meta" style={{ color: "#b91c1c" }}>Enter a valid email address.</div> : null}
           </label>
           <label>
             Manager name
@@ -109,9 +130,11 @@ export default function Assessment360HomePage() {
           <label>
             Manager email
             <input className="input" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} placeholder="manager@company.com" disabled={busy} />
+            {managerEmail.trim() && !managerEmailValid ? <div className="meta" style={{ color: "#b91c1c" }}>Enter a valid email address.</div> : null}
+            {sameEmail ? <div className="meta" style={{ color: "#b91c1c" }}>Self and manager emails must be different.</div> : null}
           </label>
           <div>
-            <button className="button" onClick={createCycleAsAdmin} disabled={busy || !title.trim() || !selfName.trim() || !selfEmail.trim() || !managerName.trim() || !managerEmail.trim()}>
+            <button className="button" onClick={createCycleAsAdmin} disabled={createDisabled}>
               Create cycle
             </button>
             {status ? <p className="meta" style={{ marginTop: 8 }}>{status}</p> : null}
@@ -150,8 +173,22 @@ export default function Assessment360HomePage() {
                 <strong>{c.title}</strong>
                 <div className="meta">{c.participant_name} · {new Date(c.created_at).toLocaleString()} {c.my_role ? `· role: ${c.my_role}` : ""}</div>
                 {isAdmin && c.assessment360_cycle_participants ? (
-                  <div className="meta" style={{ marginTop: 4 }}>
-                    {c.assessment360_cycle_participants.map((p) => `${p.role}:${p.invite_status}`).join(" · ")}
+                  <div className="meta" style={{ marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {c.assessment360_cycle_participants.map((p) => (
+                      <span
+                        key={`${c.id}-${p.role}`}
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          border: "1px solid #cbd5e1",
+                          color: inviteTone(p.invite_status),
+                          background: "#f8fafc",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {p.role}: {p.invite_status}
+                      </span>
+                    ))}
                   </div>
                 ) : null}
               </button>

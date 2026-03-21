@@ -260,6 +260,11 @@ export default function Assessment360CyclePage() {
 
         <p className="meta">Your role: {data?.viewerRole ?? "unknown"}</p>
         {data?.viewerRole === "admin" ? <span className="badge">Admin test mode</span> : null}
+        {data?.viewerRole == null ? (
+          <p className="meta" style={{ color: "#b45309", marginTop: 6 }}>
+            Role not resolved for this link yet. Open the cycle from /assessment360 list or use a participant invite link.
+          </p>
+        ) : null}
         <p className="meta">{tab.toUpperCase()} completion: {completion.done}/{completion.total} · status: {currentSubmission?.status ?? "not started"}</p>
         {lastSavedAt ? <p className="meta">Draft last saved at {lastSavedAt}</p> : null}
 
