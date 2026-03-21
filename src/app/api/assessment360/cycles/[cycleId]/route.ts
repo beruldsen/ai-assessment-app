@@ -11,13 +11,16 @@ export async function GET(req: Request, ctx: Ctx) {
 
   const admin = await isAssessmentAdmin(user.email);
   const hasParticipants = await cycleHasParticipants(cycleId);
+  const participantRole = hasParticipants ? await getCycleRole(cycleId, user.email) : null;
+
   let viewerRole: "self" | "manager" | "admin" | null = null;
-  if (admin) {
+  if (participantRole) {
+    // Participant role takes precedence when a user is both participant and admin.
+    viewerRole = participantRole;
+  } else if (admin) {
     viewerRole = "admin";
   } else if (hasParticipants) {
-    const role = await getCycleRole(cycleId, user.email);
-    if (!role) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    viewerRole = role;
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const [cycleRes, responsesRes, submissionsRes, actionPlanRes] = await Promise.all([
