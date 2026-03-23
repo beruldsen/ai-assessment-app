@@ -201,7 +201,8 @@ export default function Assessment360CyclePage() {
     if (answers.length === 0) return { ok: false, message: "Please score at least one capability before saving." };
 
     const submitOnce = async () => {
-      const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
+      const modeQuery = asMode ? `?as=${encodeURIComponent(asMode)}` : "";
+      const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses${modeQuery}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ raterType: tab, answers, mode }),
@@ -272,7 +273,8 @@ export default function Assessment360CyclePage() {
       .map((q) => ({ questionId: q.id, score: Number(scores[q.id]), comment: comments[q.id] ?? "" }))
       .filter((a) => Number.isFinite(a.score) && a.score >= 1 && a.score <= 5);
 
-    const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses`, {
+    const modeQuery = asMode ? `?as=${encodeURIComponent(asMode)}` : "";
+    const res = await fetch(`/api/assessment360/cycles/${cycleId}/responses${modeQuery}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ raterType: tab, answers, mode: "draft", forceEditAfterFinal: true }),

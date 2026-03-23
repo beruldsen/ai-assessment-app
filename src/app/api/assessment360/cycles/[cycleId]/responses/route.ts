@@ -24,6 +24,8 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   const admin = await isAssessmentAdmin(user.email);
+  const url = new URL(req.url);
+  const forceAdmin = url.searchParams.get("as") === "admin";
   const hasParticipants = await cycleHasParticipants(cycleId);
   const participantRole = hasParticipants ? await getCycleRole(cycleId, user.email) : null;
 
@@ -32,8 +34,8 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   // If this user is explicitly a participant in the cycle, lock them to their own rater type
-  // even if they also have admin capability.
-  if (participantRole && body.raterType !== participantRole) {
+  // even if they also have admin capability, unless explicitly forcing admin mode.
+  if (participantRole && body.raterType !== participantRole && !(forceAdmin && admin)) {
     return NextResponse.json({ error: `Forbidden: ${participantRole} can only submit ${participantRole} ratings.` }, { status: 403 });
   }
 
