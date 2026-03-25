@@ -45,12 +45,35 @@ function radarPoint(idx: number, value: number, total: number, cx: number, cy: n
   return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
 }
 
+function splitLabel(text: string, maxLineLength = 18, maxLines = 3) {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxLineLength) {
+      current = next;
+      continue;
+    }
+    if (current) lines.push(current);
+    current = word;
+    if (lines.length >= maxLines - 1) break;
+  }
+
+  if (current && lines.length < maxLines) lines.push(current);
+  if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length) {
+    lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, Math.max(0, maxLineLength - 1))}…`;
+  }
+  return lines;
+}
+
 function RadarChart({ rows }: { rows: ReportRow[] }) {
   if (!rows.length) return null;
 
-  const size = 360;
-  const cx = 180;
-  const cy = 180;
+  const size = 420;
+  const cx = 210;
+  const cy = 210;
   const radius = 120;
 
   const toPath = (vals: number[]) =>
@@ -71,13 +94,17 @@ function RadarChart({ rows }: { rows: ReportRow[] }) {
       ))}
       {rows.map((r, i) => {
         const p = radarPoint(i, 5, rows.length, cx, cy, radius);
-        const label = radarPoint(i, 5.7, rows.length, cx, cy, radius);
-        const truncated = r.dimension.length > 26 ? `${r.dimension.slice(0, 26)}…` : r.dimension;
+        const label = radarPoint(i, 6.25, rows.length, cx, cy, radius);
+        const lines = splitLabel(r.dimension);
         return (
           <g key={r.dimension}>
             <line x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#d1d5db" strokeWidth="1" />
             <text x={label.x} y={label.y} textAnchor="middle" fontSize="10" fill="#334155">
-              {truncated}
+              {lines.map((line, idx) => (
+                <tspan key={`${r.dimension}-${idx}`} x={label.x} dy={idx === 0 ? 0 : 11}>
+                  {line}
+                </tspan>
+              ))}
             </text>
           </g>
         );
@@ -124,6 +151,11 @@ export default function AssessmentReportPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [sortBy, setSortBy] = useState<"gap" | "lowest" | "highest">("gap");
+
+  const reportDate = useMemo(
+    () => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    [],
+  );
 
   async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
@@ -237,6 +269,17 @@ export default function AssessmentReportPage() {
     return summary.byGap;
   }, [summary, sortBy]);
 
+  function handlePrint() {
+    const originalTitle = document.title;
+    const participant = (data?.cycle.participant_name || "Participant").replace(/\s+/g, "_");
+    const date = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }).replace(/\s+/g, "");
+    document.title = `180_Assessment_${participant}_${date}`;
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 250);
+  }
+
   return (
     <main className="page">
       <h1 className="title">180° Assessment Report</h1>
@@ -246,7 +289,7 @@ export default function AssessmentReportPage() {
         <p className="meta" style={{ margin: 0 }}>Development-focused report (scale: 1-5, 5 = consistently demonstrates the capability).</p>
         <div style={{ display: "flex", gap: 8 }}>
           <Link href={`/assessment360/${cycleId}`} className="button ghost" style={{ textDecoration: "none" }}>Back to assessment</Link>
-          <button className="button" onClick={() => window.print()}>Print / Save PDF</button>
+          <button className="button" onClick={handlePrint}>Print / Save PDF</button>
         </div>
       </section>
 
@@ -260,6 +303,12 @@ export default function AssessmentReportPage() {
       ) : null}
 
       <div className="print-report" style={{ display: isReportReady ? "block" : "none" }}>
+        <header className="report-print-header" aria-hidden>
+          <div className="report-print-title">180° Capability Assessment Report</div>
+          <div className="report-print-meta">{data?.cycle.participant_name ?? "Participant"} · {reportDate}</div>
+        </header>
+        <footer className="report-print-footer" aria-hidden />
+
         {!summary ? <section className="card"><p className="meta">{status || "No ratings yet."}</p></section> : (
           <>
             {/* 1) Headline summary */}

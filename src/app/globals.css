@@ -168,14 +168,70 @@ body {
   }
 }
 
+.report-print-header,
+.report-print-footer { display: none; }
+
 @media print {
+  @page {
+    margin: 18mm 12mm 18mm 12mm;
+  }
+
   body { background: #fff !important; }
+  .page { max-width: none; padding: 0; }
   .page > * { display: none !important; }
   .page > .print-report { display: block !important; }
+  .print-report {
+    padding-top: 26mm;
+    padding-bottom: 18mm;
+  }
   .print-report .print-hide { display: none !important; }
   .print-report .card {
     box-shadow: none;
     border: 1px solid #d1d5db;
+    border-radius: 10px;
     break-inside: avoid;
+    margin-bottom: 10px;
+  }
+
+  .report-print-header {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    border-bottom: 1px solid #cbd5e1;
+    padding: 8px 12mm 6px;
+    background: #fff;
+    z-index: 10;
+  }
+
+  .report-print-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .report-print-meta {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+  }
+
+  .report-print-footer {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-top: 1px solid #e2e8f0;
+    padding: 4px 12mm;
+    background: #fff;
+    text-align: right;
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  .report-print-footer::after {
+    content: "Page " counter(page) " of " counter(pages);
   }
 }
