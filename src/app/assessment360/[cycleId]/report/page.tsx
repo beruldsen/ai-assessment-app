@@ -271,9 +271,14 @@ export default function AssessmentReportPage() {
 
   function handlePrint() {
     const originalTitle = document.title;
-    const participant = (data?.cycle.participant_name || "Participant").replace(/\s+/g, "_");
-    const date = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }).replace(/\s+/g, "");
-    document.title = `180_Assessment_${participant}_${date}`;
+    const participant = (data?.cycle.participant_name || "Participant")
+      .trim()
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "Participant";
+    const date = new Date()
+      .toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      .replace(/\s+/g, "");
+    document.title = `180_Assessment_${participant}_${date}.pdf`;
     window.print();
     setTimeout(() => {
       document.title = originalTitle;
@@ -312,7 +317,7 @@ export default function AssessmentReportPage() {
         {!summary ? <section className="card"><p className="meta">{status || "No ratings yet."}</p></section> : (
           <>
             {/* 1) Headline summary */}
-            <section className="card" style={{ marginBottom: 12 }}>
+            <section className="card print-section print-hero" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Headline summary</h2>
               <div className="kpiGrid">
                 <div className="kpiCard primary"><strong>Overall self</strong><div className="meta">{summary.overallSelf}/5</div></div>
@@ -324,16 +329,16 @@ export default function AssessmentReportPage() {
             </section>
 
             {/* 2) Radar chart */}
-            <section className="card" style={{ marginBottom: 12 }}>
+            <section className="card print-section print-radar-section" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Capability overview (radar)</h2>
-              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
+              <div className="grid print-radar-grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="print-radar-chart-wrap">
                   <RadarChart rows={summary.rows} />
                   <p className="meta" style={{ marginTop: 4 }}>
                     Blue = Self · Green = Manager
                   </p>
                 </div>
-                <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
+                <div className="print-radar-legend" style={{ display: "grid", gap: 8, alignContent: "start" }}>
                   <strong>Exact scores by capability</strong>
                   {summary.rows.map((r) => (
                     <div key={`legend-${r.dimension}`} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
@@ -346,7 +351,7 @@ export default function AssessmentReportPage() {
             </section>
 
             {/* 3) Key insights */}
-            <section className="card" style={{ marginBottom: 12 }}>
+            <section className="card print-section" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Key insights</h2>
               <div className="grid" style={{ gap: 10 }}>
                 <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
@@ -368,9 +373,9 @@ export default function AssessmentReportPage() {
             </section>
 
             {/* 4) Capability table */}
-            <section className="card" style={{ marginBottom: 12 }}>
+            <section className="card print-section" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Capability breakdown</h2>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+              <div className="print-hide" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
                 <label className="meta">Sort by</label>
                 <select className="select" value={sortBy} onChange={(e) => setSortBy(e.target.value as "gap" | "lowest" | "highest") }>
                   <option value="gap">Gap (default)</option>
@@ -406,7 +411,7 @@ export default function AssessmentReportPage() {
             </section>
 
             {/* 5) Comments by capability */}
-            <section className="card" style={{ marginBottom: 12 }}>
+            <section className="card print-section" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Comments by capability</h2>
               <div style={{ display: "grid", gap: 10 }}>
                 {summary.rows.map((r) => (
@@ -423,7 +428,7 @@ export default function AssessmentReportPage() {
             </section>
 
             {/* 6) Development priorities + alignment */}
-            <section className="card" style={{ marginBottom: 12 }}>
+            <section className="card print-section" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Top 3 development priorities</h2>
               <div style={{ display: "grid", gap: 10 }}>
                 {summary.developmentPriorities.map((r, idx) => (

@@ -173,65 +173,158 @@ body {
 
 @media print {
   @page {
-    margin: 18mm 12mm 18mm 12mm;
+    size: A4;
+    margin: 18mm 14mm 18mm 14mm;
   }
 
-  body { background: #fff !important; }
-  .page { max-width: none; padding: 0; }
-  .page > * { display: none !important; }
-  .page > .print-report { display: block !important; }
-  .print-report {
-    padding-top: 26mm;
-    padding-bottom: 18mm;
+  html, body {
+    background: #fff !important;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  .print-report .print-hide { display: none !important; }
+
+  body {
+    counter-reset: report-page;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .page > * {
+    display: none !important;
+  }
+
+  .page > .print-report {
+    display: block !important;
+  }
+
+  .print-report {
+    padding-top: 22mm;
+    padding-bottom: 14mm;
+  }
+
+  .print-report .print-hide {
+    display: none !important;
+  }
+
   .print-report .card {
     box-shadow: none;
-    border: 1px solid #d1d5db;
+    border: 1px solid #d7dee8;
     border-radius: 10px;
+    margin-bottom: 12px;
+    background: #fff !important;
+  }
+
+  .print-section {
     break-inside: avoid;
-    margin-bottom: 10px;
+    page-break-inside: avoid;
+  }
+
+  .print-hero,
+  .print-radar-section {
+    min-height: 0;
+  }
+
+  .print-radar-section svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .print-radar-grid {
+    align-items: start;
+  }
+
+  .print-radar-chart-wrap {
+    padding: 4mm 2mm 2mm 2mm;
+  }
+
+  .print-radar-legend {
+    padding: 2mm 0 0 0;
+  }
+
+  h1, h2, h3, h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  p, li, tr {
+    orphans: 3;
+    widows: 3;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11px;
+  }
+
+  th, td {
+    word-break: break-word;
+    vertical-align: top;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
   }
 
   .report-print-header {
-    display: block;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    border-bottom: 1px solid #cbd5e1;
-    padding: 8px 12mm 6px;
+    padding: 7mm 14mm 4mm;
     background: #fff;
+    border-bottom: 1px solid #dbe4f0;
     z-index: 10;
   }
 
   .report-print-title {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
     color: #0f172a;
+    letter-spacing: 0.01em;
   }
 
   .report-print-meta {
-    font-size: 11px;
+    font-size: 10.5px;
     color: #64748b;
     margin-top: 2px;
+    text-align: right;
+    white-space: nowrap;
   }
 
   .report-print-footer {
-    display: block;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    border-top: 1px solid #e2e8f0;
-    padding: 4px 12mm;
+    padding: 3mm 14mm 5mm;
     background: #fff;
-    text-align: right;
-    font-size: 11px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 10px;
     color: #64748b;
+    z-index: 10;
   }
 
   .report-print-footer::after {
-    content: "Page " counter(page) " of " counter(pages);
+    counter-increment: report-page;
+    content: "180° Capability Assessment Report · Page " counter(report-page);
   }
 }
