@@ -39,14 +39,24 @@ type ReportRow = {
   managerComment: string | null;
 };
 
+function normalizeDisplayText(text: string) {
+  return text
+    .normalize("NFKC")
+    .replace(/[\uFFF0-\uFFFF]/g, "")
+    .replace(/[‐‑‒–—―]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function radarPoint(idx: number, value: number, total: number, cx: number, cy: number, radius: number) {
   const angle = (Math.PI * 2 * idx) / total - Math.PI / 2;
   const r = (value / 5) * radius;
-  return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+  return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r, angle };
 }
 
-function splitLabel(text: string, maxLineLength = 18, maxLines = 3) {
-  const words = text.split(" ");
+function splitLabel(text: string, maxLineLength = 16, maxLines = 3) {
+  const normalized = normalizeDisplayText(text).replace(/-/g, "- ");
+  const words = normalized.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
 
@@ -56,25 +66,51 @@ function splitLabel(text: string, maxLineLength = 18, maxLines = 3) {
       current = next;
       continue;
     }
-    if (current) lines.push(current);
-    current = word;
+
+    if (current) {
+      lines.push(current.replace(/\s+-\s+/g, "-").trim());
+      current = word;
+    } else {
+      lines.push(word.slice(0, maxLineLength));
+      current = word.slice(maxLineLength);
+    }
+
     if (lines.length >= maxLines - 1) break;
   }
 
-  if (current && lines.length < maxLines) lines.push(current);
-  if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length) {
-    lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, Math.max(0, maxLineLength - 1))}…`;
+  if (current && lines.length < maxLines) {
+    lines.push(current.replace(/\s+-\s+/g, "-").trim());
   }
-  return lines;
+
+  if (lines.length > maxLines) {
+    lines.length = maxLines;
+  }
+
+  return lines.map((line, index) => {
+    const clean = line.trim();
+    if (index === maxLines - 1 && words.join(" ").replace(/\s+-\s+/g, "-").length > lines.join(" ").length) {
+      return `${clean.slice(0, Math.max(0, maxLineLength - 1)).trim()}…`;
+    }
+    return clean;
+  });
+}
+
+function labelAnchor(angle: number) {
+  const normalized = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const cos = Math.cos(normalized);
+  if (cos > 0.35) return "start";
+  if (cos < -0.35) return "end";
+  return "middle";
 }
 
 function RadarChart({ rows }: { rows: ReportRow[] }) {
   if (!rows.length) return null;
 
-  const size = 420;
-  const cx = 210;
-  const cy = 210;
-  const radius = 120;
+  const size = 520;
+  const cx = 260;
+  const cy = 260;
+  const radius = 150;
+  const labelRadius = 182;
 
   const toPath = (vals: number[]) =>
     vals
@@ -88,20 +124,29 @@ function RadarChart({ rows }: { rows: ReportRow[] }) {
   const managerVals = rows.map((r) => r.managerAvg ?? 0);
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg className="radar-svg" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {[1, 2, 3, 4, 5].map((lvl) => (
         <circle key={lvl} cx={cx} cy={cy} r={(lvl / 5) * radius} fill="none" stroke="#d1d5db" strokeWidth="1" />
       ))}
       {rows.map((r, i) => {
-        const p = radarPoint(i, 5, rows.length, cx, cy, radius);
-        const label = radarPoint(i, 6.25, rows.length, cx, cy, radius);
+        const axis = radarPoint(i, 5, rows.length, cx, cy, radius);
+        const label = radarPoint(i, 5, rows.length, cx, cy, labelRadius);
         const lines = splitLabel(r.dimension);
+        const anchor = labelAnchor(label.angle);
+        const startDy = lines.length > 1 ? `${-((lines.length - 1) * 0.55)}em` : "0.35em";
         return (
           <g key={r.dimension}>
-            <line x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#d1d5db" strokeWidth="1" />
-            <text x={label.x} y={label.y} textAnchor="middle" fontSize="10" fill="#334155">
+            <line x1={cx} y1={cy} x2={axis.x} y2={axis.y} stroke="#d1d5db" strokeWidth="1" />
+            <text
+              x={label.x}
+              y={label.y}
+              textAnchor={anchor}
+              fontSize="12"
+              fontWeight="600"
+              fill="#334155"
+            >
               {lines.map((line, idx) => (
-                <tspan key={`${r.dimension}-${idx}`} x={label.x} dy={idx === 0 ? 0 : 11}>
+                <tspan key={`${r.dimension}-${idx}`} x={label.x} dy={idx === 0 ? startDy : "1.15em"}>
                   {line}
                 </tspan>
               ))}
@@ -110,8 +155,8 @@ function RadarChart({ rows }: { rows: ReportRow[] }) {
         );
       })}
 
-      <path d={toPath(selfVals)} fill="rgba(59,130,246,0.20)" stroke="#2563eb" strokeWidth="2" />
-      <path d={toPath(managerVals)} fill="rgba(16,185,129,0.18)" stroke="#059669" strokeWidth="2" />
+      <path d={toPath(selfVals)} fill="rgba(59,130,246,0.20)" stroke="#2563eb" strokeWidth="2.5" />
+      <path d={toPath(managerVals)} fill="rgba(16,185,129,0.18)" stroke="#059669" strokeWidth="2.5" />
     </svg>
   );
 }
@@ -309,7 +354,10 @@ export default function AssessmentReportPage() {
 
       <div className="print-report" style={{ display: isReportReady ? "block" : "none" }}>
         <header className="report-print-header" aria-hidden>
-          <div className="report-print-title">180° Capability Assessment Report</div>
+          <div>
+            <div className="report-print-title">180° Capability Assessment Report</div>
+            <div className="report-print-subtitle">Development summary for leadership review</div>
+          </div>
           <div className="report-print-meta">{data?.cycle.participant_name ?? "Participant"} · {reportDate}</div>
         </header>
         <footer className="report-print-footer" aria-hidden />
@@ -322,9 +370,9 @@ export default function AssessmentReportPage() {
               <div className="kpiGrid">
                 <div className="kpiCard primary"><strong>Overall self</strong><div className="meta">{summary.overallSelf}/5</div></div>
                 <div className="kpiCard secondary"><strong>Overall manager</strong><div className="meta">{summary.overallManager}/5</div></div>
-                <div className="kpiCard warning"><strong>Largest gap</strong><div className="meta">{summary.largestGap?.dimension ?? "-"}</div></div>
-                <div className="kpiCard success"><strong>Strongest capability</strong><div className="meta">{summary.strongest?.dimension ?? "-"}</div></div>
-                <div className="kpiCard warning"><strong>Top development focus</strong><div className="meta">{summary.topDevelopment?.dimension ?? "-"}</div></div>
+                <div className="kpiCard warning"><strong>Largest gap</strong><div className="meta">{normalizeDisplayText(summary.largestGap?.dimension ?? "-")}</div></div>
+                <div className="kpiCard success"><strong>Strongest capability</strong><div className="meta">{normalizeDisplayText(summary.strongest?.dimension ?? "-")}</div></div>
+                <div className="kpiCard warning"><strong>Top development focus</strong><div className="meta">{normalizeDisplayText(summary.topDevelopment?.dimension ?? "-")}</div></div>
               </div>
             </section>
 
@@ -342,7 +390,7 @@ export default function AssessmentReportPage() {
                   <strong>Exact scores by capability</strong>
                   {summary.rows.map((r) => (
                     <div key={`legend-${r.dimension}`} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
-                      <div style={{ fontWeight: 600 }}>{r.dimension}</div>
+                      <div style={{ fontWeight: 600 }}>{normalizeDisplayText(r.dimension)}</div>
                       <div className="meta">Self: {formatScore(r.selfAvg)} · Manager: {formatScore(r.managerAvg)} · Gap: {formatGap(r.gap)}</div>
                     </div>
                   ))}
@@ -355,17 +403,17 @@ export default function AssessmentReportPage() {
               <h2 style={{ marginTop: 0 }}>Key insights</h2>
               <div className="grid" style={{ gap: 10 }}>
                 <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                  <strong>Strongest capability: {summary.strongest?.dimension ?? "-"}</strong>
+                  <strong>Strongest capability: {normalizeDisplayText(summary.strongest?.dimension ?? "-")}</strong>
                   <p className="meta" style={{ margin: "6px 0 0 0" }}>What this means: This is a reliable strength to keep leveraging in high-value conversations.</p>
                   <p className="meta" style={{ margin: "6px 0 0 0" }}>Recommendation: Use this strength as a coaching anchor while raising weaker capabilities.</p>
                 </div>
                 <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                  <strong>Largest gap: {summary.largestGap?.dimension ?? "-"} ({formatGap(summary.largestGap?.gap ?? null)})</strong>
+                  <strong>Largest gap: {normalizeDisplayText(summary.largestGap?.dimension ?? "-")} ({formatGap(summary.largestGap?.gap ?? null)})</strong>
                   <p className="meta" style={{ margin: "6px 0 0 0" }}>What this means: There is a perception mismatch that can block targeted development if left unresolved.</p>
                   <p className="meta" style={{ margin: "6px 0 0 0" }}>Recommendation: {recommendationForDimension(summary.largestGap?.dimension)}</p>
                 </div>
                 <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                  <strong>Top development focus: {summary.topDevelopment?.dimension ?? "-"}</strong>
+                  <strong>Top development focus: {normalizeDisplayText(summary.topDevelopment?.dimension ?? "-")}</strong>
                   <p className="meta" style={{ margin: "6px 0 0 0" }}>What this means: This area currently has the greatest impact potential for improved performance outcomes.</p>
                   <p className="meta" style={{ margin: "6px 0 0 0" }}>Recommendation: {recommendationForDimension(summary.topDevelopment?.dimension)}</p>
                 </div>
@@ -388,21 +436,21 @@ export default function AssessmentReportPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Capability</th>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Self</th>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Manager</th>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Average</th>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "6px" }}>Gap (Manager - Self)</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "40%" }}>Capability</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "12%" }}>Self</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "12%" }}>Manager</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "12%" }}>Average</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "24%" }}>Gap (Manager - Self)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportRows.map((r) => (
                       <tr key={`rep-${r.dimension}`} style={{ background: gapBackground(r.absGap) }}>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{r.dimension}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{formatScore(r.selfAvg)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{formatScore(r.managerAvg)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px" }}>{formatScore(r.averageScore)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "6px", fontWeight: 600 }}>{formatGap(r.gap)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", fontWeight: 600 }}>{normalizeDisplayText(r.dimension)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap" }}>{formatScore(r.selfAvg)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap" }}>{formatScore(r.managerAvg)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap" }}>{formatScore(r.averageScore)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>{formatGap(r.gap)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -416,7 +464,7 @@ export default function AssessmentReportPage() {
               <div style={{ display: "grid", gap: 10 }}>
                 {summary.rows.map((r) => (
                   <div key={`comments-${r.dimension}`} className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{r.dimension}</div>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{normalizeDisplayText(r.dimension)}</div>
                     <div className="meta" style={{ marginBottom: 8 }}>
                       Self: {formatScore(r.selfAvg)} | Manager: {formatScore(r.managerAvg)} | Gap: {formatGap(r.gap)}
                     </div>
@@ -433,7 +481,7 @@ export default function AssessmentReportPage() {
               <div style={{ display: "grid", gap: 10 }}>
                 {summary.developmentPriorities.map((r, idx) => (
                   <div key={`priority-${r.dimension}`} className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                    <strong>{idx + 1}. {r.dimension}</strong>
+                    <strong>{idx + 1}. {normalizeDisplayText(r.dimension)}</strong>
                     <p className="meta" style={{ margin: "6px 0 0 0" }}>Why it matters: {explanationForRow(r)}</p>
                     <p className="meta" style={{ margin: "6px 0 0 0" }}>Suggested action: {recommendationForDimension(r.dimension)}</p>
                   </div>
