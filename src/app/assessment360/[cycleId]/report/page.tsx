@@ -33,10 +33,28 @@ type ReportRow = {
   managerAvg: number | null;
   overallAvg: number;
   averageScore: number | null;
-  gap: number | null; // manager - self
+  gap: number | null;
   absGap: number;
   selfComment: string | null;
   managerComment: string | null;
+};
+
+type Summary = {
+  rows: ReportRow[];
+  byGap: ReportRow[];
+  byLowest: ReportRow[];
+  byHighest: ReportRow[];
+  overallSelf: number;
+  overallManager: number;
+  strongest?: ReportRow;
+  largestGap?: ReportRow;
+  topDevelopment?: ReportRow;
+  developmentPriorities: ReportRow[];
+  alignment: {
+    strongAlignment: number;
+    moderateMisalignment: number;
+    significantMisalignment: number;
+  };
 };
 
 function normalizeDisplayText(text: string) {
@@ -54,7 +72,7 @@ function radarPoint(idx: number, value: number, total: number, cx: number, cy: n
   return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r, angle };
 }
 
-function splitLabel(text: string, maxLineLength = 16, maxLines = 3) {
+function splitLabel(text: string, maxLineLength = 18, maxLines = 3) {
   const normalized = normalizeDisplayText(text).replace(/-/g, "- ");
   const words = normalized.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -66,7 +84,6 @@ function splitLabel(text: string, maxLineLength = 16, maxLines = 3) {
       current = next;
       continue;
     }
-
     if (current) {
       lines.push(current.replace(/\s+-\s+/g, "-").trim());
       current = word;
@@ -74,25 +91,11 @@ function splitLabel(text: string, maxLineLength = 16, maxLines = 3) {
       lines.push(word.slice(0, maxLineLength));
       current = word.slice(maxLineLength);
     }
-
     if (lines.length >= maxLines - 1) break;
   }
 
-  if (current && lines.length < maxLines) {
-    lines.push(current.replace(/\s+-\s+/g, "-").trim());
-  }
-
-  if (lines.length > maxLines) {
-    lines.length = maxLines;
-  }
-
-  return lines.map((line, index) => {
-    const clean = line.trim();
-    if (index === maxLines - 1 && words.join(" ").replace(/\s+-\s+/g, "-").length > lines.join(" ").length) {
-      return `${clean.slice(0, Math.max(0, maxLineLength - 1)).trim()}…`;
-    }
-    return clean;
-  });
+  if (current && lines.length < maxLines) lines.push(current.replace(/\s+-\s+/g, "-").trim());
+  return lines.slice(0, maxLines);
 }
 
 function labelAnchor(angle: number) {
@@ -137,14 +140,7 @@ function RadarChart({ rows }: { rows: ReportRow[] }) {
         return (
           <g key={r.dimension}>
             <line x1={cx} y1={cy} x2={axis.x} y2={axis.y} stroke="#d1d5db" strokeWidth="1" />
-            <text
-              x={label.x}
-              y={label.y}
-              textAnchor={anchor}
-              fontSize="12"
-              fontWeight="600"
-              fill="#334155"
-            >
+            <text x={label.x} y={label.y} textAnchor={anchor} fontSize="12" fontWeight="600" fill="#334155">
               {lines.map((line, idx) => (
                 <tspan key={`${r.dimension}-${idx}`} x={label.x} dy={idx === 0 ? startDy : "1.15em"}>
                   {line}
@@ -154,17 +150,10 @@ function RadarChart({ rows }: { rows: ReportRow[] }) {
           </g>
         );
       })}
-
       <path d={toPath(selfVals)} fill="rgba(59,130,246,0.20)" stroke="#2563eb" strokeWidth="2.5" />
       <path d={toPath(managerVals)} fill="rgba(16,185,129,0.18)" stroke="#059669" strokeWidth="2.5" />
     </svg>
   );
-}
-
-function gapBackground(absGap: number) {
-  if (absGap >= 2) return "rgba(239,68,68,0.16)";
-  if (absGap >= 1) return "rgba(245,158,11,0.14)";
-  return "rgba(16,185,129,0.12)";
 }
 
 function formatScore(val: number | null) {
@@ -186,7 +175,125 @@ function explanationForRow(row?: ReportRow) {
 
 function recommendationForDimension(dimension?: string) {
   if (!dimension) return "Set one concrete behaviour goal for the next 30 days and review progress weekly.";
-  return `In ${dimension}, agree one real customer-facing behaviour to practise weekly and review evidence together.`;
+  return `In ${normalizeDisplayText(dimension)}, agree one real customer-facing behaviour to practise weekly and review evidence together.`;
+}
+
+function PrintFriendlyReport({ data, summary }: { data: ApiResponse; summary: Summary }) {
+  return (
+    <div className="report-print-safe">
+      <section className="report-sheet">
+        <div className="report-sheet-header">
+          <div>
+            <div className="report-sheet-title">180° Capability Assessment Report</div>
+            <div className="report-sheet-meta">{normalizeDisplayText(data.cycle.title)}</div>
+          </div>
+          <div className="report-sheet-meta report-sheet-meta-right">{normalizeDisplayText(data.cycle.participant_name)}</div>
+        </div>
+
+        <div className="report-sheet-section">
+          <h2>Headline summary</h2>
+          <div className="print-kpi-grid">
+            <div className="print-kpi-box"><strong>Overall self</strong><span>{summary.overallSelf}/5</span></div>
+            <div className="print-kpi-box"><strong>Overall manager</strong><span>{summary.overallManager}/5</span></div>
+            <div className="print-kpi-box"><strong>Largest gap</strong><span>{normalizeDisplayText(summary.largestGap?.dimension ?? "-")}</span></div>
+            <div className="print-kpi-box"><strong>Strongest capability</strong><span>{normalizeDisplayText(summary.strongest?.dimension ?? "-")}</span></div>
+            <div className="print-kpi-box"><strong>Top development focus</strong><span>{normalizeDisplayText(summary.topDevelopment?.dimension ?? "-")}</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="report-sheet">
+        <div className="report-sheet-section">
+          <h2>Capability overview</h2>
+          <div className="print-radar-safe-grid">
+            <div>
+              <RadarChart rows={summary.rows} />
+              <p className="meta">Blue = Self · Green = Manager</p>
+            </div>
+            <div className="print-legend-list">
+              {summary.rows.map((r) => (
+                <div key={`print-legend-${r.dimension}`} className="print-legend-item">
+                  <strong>{normalizeDisplayText(r.dimension)}</strong>
+                  <div className="meta">Self: {formatScore(r.selfAvg)} · Manager: {formatScore(r.managerAvg)} · Gap: {formatGap(r.gap)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="report-sheet">
+        <div className="report-sheet-section">
+          <h2>Capability breakdown</h2>
+          <table className="print-table-safe">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Self</th>
+                <th>Manager</th>
+                <th>Average</th>
+                <th>Gap</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.byGap.map((r) => (
+                <tr key={`safe-table-${r.dimension}`}>
+                  <td>{normalizeDisplayText(r.dimension)}</td>
+                  <td>{formatScore(r.selfAvg)}</td>
+                  <td>{formatScore(r.managerAvg)}</td>
+                  <td>{formatScore(r.averageScore)}</td>
+                  <td>{formatGap(r.gap)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="report-sheet">
+        <div className="report-sheet-section">
+          <h2>Key insights</h2>
+          <div className="print-text-block">
+            <strong>Strongest capability:</strong> {normalizeDisplayText(summary.strongest?.dimension ?? "-")}
+            <div className="meta">Use this strength as a coaching anchor while raising weaker capabilities.</div>
+          </div>
+          <div className="print-text-block">
+            <strong>Largest gap:</strong> {normalizeDisplayText(summary.largestGap?.dimension ?? "-")} ({formatGap(summary.largestGap?.gap ?? null)})
+            <div className="meta">{recommendationForDimension(summary.largestGap?.dimension)}</div>
+          </div>
+          <div className="print-text-block">
+            <strong>Top development focus:</strong> {normalizeDisplayText(summary.topDevelopment?.dimension ?? "-")}
+            <div className="meta">{recommendationForDimension(summary.topDevelopment?.dimension)}</div>
+          </div>
+        </div>
+
+        <div className="report-sheet-section">
+          <h2>Top 3 development priorities</h2>
+          {summary.developmentPriorities.map((r, idx) => (
+            <div key={`safe-priority-${r.dimension}`} className="print-text-block">
+              <strong>{idx + 1}. {normalizeDisplayText(r.dimension)}</strong>
+              <div className="meta">Why it matters: {explanationForRow(r)}</div>
+              <div className="meta">Suggested action: {recommendationForDimension(r.dimension)}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="report-sheet">
+        <div className="report-sheet-section">
+          <h2>Comments by capability</h2>
+          {summary.rows.map((r) => (
+            <div key={`safe-comments-${r.dimension}`} className="print-text-block">
+              <strong>{normalizeDisplayText(r.dimension)}</strong>
+              <div className="meta">Self: {formatScore(r.selfAvg)} · Manager: {formatScore(r.managerAvg)} · Gap: {formatGap(r.gap)}</div>
+              <div className="meta"><strong>Self comment:</strong> {r.selfComment ?? "No self comment provided."}</div>
+              <div className="meta"><strong>Manager comment:</strong> {r.managerComment ?? "No manager comment provided."}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 export default function AssessmentReportPage() {
@@ -196,11 +303,6 @@ export default function AssessmentReportPage() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [status, setStatus] = useState("loading...");
   const [sortBy, setSortBy] = useState<"gap" | "lowest" | "highest">("gap");
-
-  const reportDate = useMemo(
-    () => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-    [],
-  );
 
   async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
@@ -235,17 +337,10 @@ export default function AssessmentReportPage() {
     return selfFinal && managerFinal;
   }, [data]);
 
-  const summary = useMemo(() => {
+  const summary = useMemo<Summary | null>(() => {
     if (!data || !isReportReady) return null;
 
-    const byDimension = new Map<string, {
-      self: number[];
-      manager: number[];
-      all: number[];
-      selfComments: string[];
-      managerComments: string[];
-    }>();
-
+    const byDimension = new Map<string, { self: number[]; manager: number[]; all: number[]; selfComments: string[]; managerComments: string[] }>();
     for (const r of data.responses) {
       const bucket = byDimension.get(r.dimension) ?? { self: [], manager: [], all: [], selfComments: [], managerComments: [] };
       bucket.all.push(r.score);
@@ -261,7 +356,6 @@ export default function AssessmentReportPage() {
     }
 
     const avg = (arr: number[]) => (arr.length ? Number((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null);
-
     const rows: ReportRow[] = Array.from(byDimension.entries()).map(([dimension, vals]) => {
       const selfAvg = avg(vals.self);
       const managerAvg = avg(vals.manager);
@@ -284,13 +378,8 @@ export default function AssessmentReportPage() {
     const byGap = [...rows].sort((a, b) => b.absGap - a.absGap);
     const byLowest = [...rows].sort((a, b) => (a.averageScore ?? 0) - (b.averageScore ?? 0));
     const byHighest = [...rows].sort((a, b) => (b.averageScore ?? 0) - (a.averageScore ?? 0));
-
     const overallSelf = rows.reduce((acc, r) => acc + (r.selfAvg ?? 0), 0) / Math.max(1, rows.length);
     const overallManager = rows.reduce((acc, r) => acc + (r.managerAvg ?? 0), 0) / Math.max(1, rows.length);
-
-    const strongAlignment = rows.filter((r) => r.absGap === 0).length;
-    const moderateMisalignment = rows.filter((r) => r.absGap > 0 && r.absGap < 2).length;
-    const significantMisalignment = rows.filter((r) => r.absGap >= 2).length;
 
     return {
       rows,
@@ -303,7 +392,11 @@ export default function AssessmentReportPage() {
       largestGap: byGap[0],
       topDevelopment: byLowest[0],
       developmentPriorities: byLowest.slice(0, 3),
-      alignment: { strongAlignment, moderateMisalignment, significantMisalignment },
+      alignment: {
+        strongAlignment: rows.filter((r) => r.absGap === 0).length,
+        moderateMisalignment: rows.filter((r) => r.absGap > 0 && r.absGap < 2).length,
+        significantMisalignment: rows.filter((r) => r.absGap >= 2).length,
+      },
     };
   }, [data, isReportReady]);
 
@@ -316,13 +409,8 @@ export default function AssessmentReportPage() {
 
   function handlePrint() {
     const originalTitle = document.title;
-    const participant = (data?.cycle.participant_name || "Participant")
-      .trim()
-      .replace(/[^a-zA-Z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "Participant";
-    const date = new Date()
-      .toLocaleDateString("en-US", { month: "short", year: "numeric" })
-      .replace(/\s+/g, "");
+    const participant = (data?.cycle.participant_name || "Participant").trim().replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "Participant";
+    const date = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }).replace(/\s+/g, "");
     document.title = `180_Assessment_${participant}_${date}.pdf`;
     window.print();
     setTimeout(() => {
@@ -352,76 +440,10 @@ export default function AssessmentReportPage() {
         </section>
       ) : null}
 
-      <div className="print-report" style={{ display: isReportReady ? "block" : "none" }}>
-        <header className="report-print-header" aria-hidden>
-          <div>
-            <div className="report-print-title">180° Capability Assessment Report</div>
-            <div className="report-print-subtitle">Development summary for leadership review</div>
-          </div>
-          <div className="report-print-meta">{data?.cycle.participant_name ?? "Participant"} · {reportDate}</div>
-        </header>
-        <footer className="report-print-footer" aria-hidden />
-
+      <div className="print-hide-screen" style={{ display: isReportReady ? "block" : "none" }}>
         {!summary ? <section className="card"><p className="meta">{status || "No ratings yet."}</p></section> : (
           <>
-            {/* 1) Headline summary */}
-            <section className="card print-section print-hero" style={{ marginBottom: 12 }}>
-              <h2 style={{ marginTop: 0 }}>Headline summary</h2>
-              <div className="kpiGrid">
-                <div className="kpiCard primary"><strong>Overall self</strong><div className="meta">{summary.overallSelf}/5</div></div>
-                <div className="kpiCard secondary"><strong>Overall manager</strong><div className="meta">{summary.overallManager}/5</div></div>
-                <div className="kpiCard warning"><strong>Largest gap</strong><div className="meta">{normalizeDisplayText(summary.largestGap?.dimension ?? "-")}</div></div>
-                <div className="kpiCard success"><strong>Strongest capability</strong><div className="meta">{normalizeDisplayText(summary.strongest?.dimension ?? "-")}</div></div>
-                <div className="kpiCard warning"><strong>Top development focus</strong><div className="meta">{normalizeDisplayText(summary.topDevelopment?.dimension ?? "-")}</div></div>
-              </div>
-            </section>
-
-            {/* 2) Radar chart */}
-            <section className="card print-section print-radar-section" style={{ marginBottom: 12 }}>
-              <h2 style={{ marginTop: 0 }}>Capability overview (radar)</h2>
-              <div className="grid print-radar-grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div className="print-radar-chart-wrap">
-                  <RadarChart rows={summary.rows} />
-                  <p className="meta" style={{ marginTop: 4 }}>
-                    Blue = Self · Green = Manager
-                  </p>
-                </div>
-                <div className="print-radar-legend" style={{ display: "grid", gap: 8, alignContent: "start" }}>
-                  <strong>Exact scores by capability</strong>
-                  {summary.rows.map((r) => (
-                    <div key={`legend-${r.dimension}`} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
-                      <div style={{ fontWeight: 600 }}>{normalizeDisplayText(r.dimension)}</div>
-                      <div className="meta">Self: {formatScore(r.selfAvg)} · Manager: {formatScore(r.managerAvg)} · Gap: {formatGap(r.gap)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {/* 3) Key insights */}
-            <section className="card print-section" style={{ marginBottom: 12 }}>
-              <h2 style={{ marginTop: 0 }}>Key insights</h2>
-              <div className="grid" style={{ gap: 10 }}>
-                <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                  <strong>Strongest capability: {normalizeDisplayText(summary.strongest?.dimension ?? "-")}</strong>
-                  <p className="meta" style={{ margin: "6px 0 0 0" }}>What this means: This is a reliable strength to keep leveraging in high-value conversations.</p>
-                  <p className="meta" style={{ margin: "6px 0 0 0" }}>Recommendation: Use this strength as a coaching anchor while raising weaker capabilities.</p>
-                </div>
-                <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                  <strong>Largest gap: {normalizeDisplayText(summary.largestGap?.dimension ?? "-")} ({formatGap(summary.largestGap?.gap ?? null)})</strong>
-                  <p className="meta" style={{ margin: "6px 0 0 0" }}>What this means: There is a perception mismatch that can block targeted development if left unresolved.</p>
-                  <p className="meta" style={{ margin: "6px 0 0 0" }}>Recommendation: {recommendationForDimension(summary.largestGap?.dimension)}</p>
-                </div>
-                <div className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                  <strong>Top development focus: {normalizeDisplayText(summary.topDevelopment?.dimension ?? "-")}</strong>
-                  <p className="meta" style={{ margin: "6px 0 0 0" }}>What this means: This area currently has the greatest impact potential for improved performance outcomes.</p>
-                  <p className="meta" style={{ margin: "6px 0 0 0" }}>Recommendation: {recommendationForDimension(summary.topDevelopment?.dimension)}</p>
-                </div>
-              </div>
-            </section>
-
-            {/* 4) Capability table */}
-            <section className="card print-section" style={{ marginBottom: 12 }}>
+            <section className="card" style={{ marginBottom: 12 }}>
               <h2 style={{ marginTop: 0 }}>Capability breakdown</h2>
               <div className="print-hide" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
                 <label className="meta">Sort by</label>
@@ -431,72 +453,37 @@ export default function AssessmentReportPage() {
                   <option value="highest">Highest score</option>
                 </select>
               </div>
-
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "40%" }}>Capability</th>
-                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "12%" }}>Self</th>
-                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "12%" }}>Manager</th>
-                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "12%" }}>Average</th>
-                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px", width: "24%" }}>Gap (Manager - Self)</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>Capability</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>Self</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>Manager</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>Average</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>Gap</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportRows.map((r) => (
-                      <tr key={`rep-${r.dimension}`} style={{ background: gapBackground(r.absGap) }}>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", fontWeight: 600 }}>{normalizeDisplayText(r.dimension)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap" }}>{formatScore(r.selfAvg)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap" }}>{formatScore(r.managerAvg)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap" }}>{formatScore(r.averageScore)}</td>
-                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>{formatGap(r.gap)}</td>
+                      <tr key={`rep-${r.dimension}`}>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>{normalizeDisplayText(r.dimension)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center" }}>{formatScore(r.selfAvg)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center" }}>{formatScore(r.managerAvg)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center" }}>{formatScore(r.averageScore)}</td>
+                        <td style={{ borderBottom: "1px solid var(--border)", padding: "10px 12px", textAlign: "center" }}>{formatGap(r.gap)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </section>
-
-            {/* 5) Comments by capability */}
-            <section className="card print-section" style={{ marginBottom: 12 }}>
-              <h2 style={{ marginTop: 0 }}>Comments by capability</h2>
-              <div style={{ display: "grid", gap: 10 }}>
-                {summary.rows.map((r) => (
-                  <div key={`comments-${r.dimension}`} className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{normalizeDisplayText(r.dimension)}</div>
-                    <div className="meta" style={{ marginBottom: 8 }}>
-                      Self: {formatScore(r.selfAvg)} | Manager: {formatScore(r.managerAvg)} | Gap: {formatGap(r.gap)}
-                    </div>
-                    <div className="meta" style={{ marginBottom: 4 }}><strong>Self comment:</strong> {r.selfComment ?? "No self comment provided."}</div>
-                    <div className="meta"><strong>Manager comment:</strong> {r.managerComment ?? "No manager comment provided."}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 6) Development priorities + alignment */}
-            <section className="card print-section" style={{ marginBottom: 12 }}>
-              <h2 style={{ marginTop: 0 }}>Top 3 development priorities</h2>
-              <div style={{ display: "grid", gap: 10 }}>
-                {summary.developmentPriorities.map((r, idx) => (
-                  <div key={`priority-${r.dimension}`} className="card" style={{ background: "#f8fafc", borderColor: "#cbd5e1" }}>
-                    <strong>{idx + 1}. {normalizeDisplayText(r.dimension)}</strong>
-                    <p className="meta" style={{ margin: "6px 0 0 0" }}>Why it matters: {explanationForRow(r)}</p>
-                    <p className="meta" style={{ margin: "6px 0 0 0" }}>Suggested action: {recommendationForDimension(r.dimension)}</p>
-                  </div>
-                ))}
-              </div>
-
-              <h3 style={{ marginTop: 16, marginBottom: 8 }}>Alignment view</h3>
-              <div className="kpiGrid">
-                <div className="kpiCard success"><strong>Strong alignment (gap = 0)</strong><div className="meta">{summary.alignment.strongAlignment}</div></div>
-                <div className="kpiCard warning"><strong>Moderate misalignment (±1)</strong><div className="meta">{summary.alignment.moderateMisalignment}</div></div>
-                <div className="kpiCard warning"><strong>Significant misalignment (≥2)</strong><div className="meta">{summary.alignment.significantMisalignment}</div></div>
-              </div>
-            </section>
           </>
         )}
+      </div>
+
+      <div className="print-only-report" style={{ display: isReportReady && data && summary ? "block" : "none" }}>
+        {data && summary ? <PrintFriendlyReport data={data} summary={summary} /> : null}
       </div>
     </main>
   );
