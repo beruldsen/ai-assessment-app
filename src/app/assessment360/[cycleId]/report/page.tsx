@@ -314,22 +314,6 @@ export default function AssessmentReportPage() {
     return summary.byGap;
   }, [summary, sortBy]);
 
-  function handlePrint() {
-    const originalTitle = document.title;
-    const participant = (data?.cycle.participant_name || "Participant")
-      .trim()
-      .replace(/[^a-zA-Z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "Participant";
-    const date = new Date()
-      .toLocaleDateString("en-US", { month: "short", year: "numeric" })
-      .replace(/\s+/g, "");
-    document.title = `180_Assessment_${participant}_${date}.pdf`;
-    window.print();
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 250);
-  }
-
   return (
     <main className="page">
       <h1 className="title">180° Assessment Report</h1>
@@ -339,7 +323,7 @@ export default function AssessmentReportPage() {
         <p className="meta" style={{ margin: 0 }}>Development-focused report (scale: 1-5, 5 = consistently demonstrates the capability).</p>
         <div style={{ display: "flex", gap: 8 }}>
           <Link href={`/assessment360/${cycleId}`} className="button ghost" style={{ textDecoration: "none" }}>Back to assessment</Link>
-          <button className="button" onClick={handlePrint}>Print / Save PDF</button>
+          <Link href={`/assessment360/${cycleId}/report/print`} className="button" style={{ textDecoration: "none" }}>Open print / PDF view</Link>
         </div>
       </section>
 
