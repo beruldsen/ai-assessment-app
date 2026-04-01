@@ -46,8 +46,8 @@ export async function maybeSendAssessmentCompletionEmails(cycleId: string) {
           cycle_title: cycle.title,
           invitation_summary:
             participant.role === "manager"
-              ? `${cycle.participant_name}'s Future SE 180 report is ready.`
-              : "Your Future SE 180 report is ready.",
+              ? `${cycle.participant_name}'s Mastering Technical Sales report is ready.`
+              : "Your Mastering Technical Sales report is ready.",
           guidance:
             participant.role === "manager"
               ? `Thank you for completing the manager assessment for ${cycle.participant_name}. Both parts of the assessment are now complete, and the report is ready to review.`

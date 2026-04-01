@@ -32,7 +32,7 @@ type Cycle = {
 
 export default function Assessment360HomePage() {
   const router = useRouter();
-  const [title, setTitle] = useState("Future-Ready SE 180");
+  const [title, setTitle] = useState("Mastering Technical Sales 180");
   const [selfName, setSelfName] = useState("");
   const [selfEmail, setSelfEmail] = useState("");
   const [managerName, setManagerName] = useState("");
@@ -194,7 +194,7 @@ export default function Assessment360HomePage() {
 
   return (
     <main className="page">
-      <h1 className="title">Future SE 180° Assessment</h1>
+      <h1 className="title">Mastering Technical Sales 180° Assessment</h1>
       <p className="subtitle">Admin workspace for creating, tracking, and reviewing self + manager assessments.</p>
       <p className="meta" style={{ marginTop: -4 }}>Use the admin table below to track invite status, progress, and report readiness.</p>
 
