@@ -46,12 +46,12 @@ export async function maybeSendAssessmentCompletionEmails(cycleId: string) {
           cycle_title: cycle.title,
           invitation_summary:
             participant.role === "manager"
-              ? `The assessment report for ${cycle.participant_name} is now ready to review.`
-              : `Your 180-degree assessment report for ${cycle.title} is now ready to review.`,
+              ? `${cycle.participant_name}'s Future SE 180 report is ready.`
+              : "Your Future SE 180 report is ready.",
           guidance:
             participant.role === "manager"
-              ? `Both the self assessment and manager assessment for ${cycle.participant_name} are complete. You can now review the report.`
-              : "Both the self assessment and manager assessment are complete. You can now review the report.",
+              ? `Thank you for completing the manager assessment for ${cycle.participant_name}. Both parts of the assessment are now complete, and the report is ready to review.`
+              : `Thanks for completing your self assessment. Both parts of the assessment are now complete, and your report for ${cycle.title} is ready to review.`,
           report_link: reportUrl,
         },
       },
