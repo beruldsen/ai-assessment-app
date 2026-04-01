@@ -21,9 +21,9 @@ export async function GET(req: Request) {
   if (admin) {
     const { data, error } = await supabaseServer
       .from("assessment360_cycles")
-      .select("id,title,participant_name,status,created_at,assessment360_cycle_participants(role,email,name,invite_status,invite_sent_at)")
+      .select("id,title,participant_name,status,created_at,assessment360_cycle_participants(role,email,name,invite_status,invite_sent_at,invite_error),assessment360_submissions(rater_type,status,submitted_at,version)")
       .order("created_at", { ascending: false })
-      .limit(25);
+      .limit(50);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ cycles: data ?? [], isAdmin: true });
