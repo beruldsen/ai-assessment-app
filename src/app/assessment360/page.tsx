@@ -146,6 +146,20 @@ export default function Assessment360HomePage() {
     }
   }
 
+  async function resendInvite(cycleId: string, role: "self" | "manager") {
+    setBusy(true);
+    setStatus(`Resending ${role} invite...`);
+    const res = await fetch("/api/assessment360/cycles", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ cycleId, role }),
+    });
+    const json = await res.json();
+    setBusy(false);
+    setStatus(json.message ?? (res.ok ? `${role} invite resent.` : `Failed to resend ${role} invite.`));
+    await loadCycles();
+  }
+
   async function createCycleAsAdmin() {
     if (createDisabled) {
       setStatus("Please complete all fields with valid emails before creating a cycle.");
@@ -303,6 +317,8 @@ export default function Assessment360HomePage() {
                         <div style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, ...inviteBadgeStyle(selfParticipant?.invite_status ?? "pending") }}>
                           invite: {selfParticipant?.invite_status ?? "pending"}
                         </div>
+                        {selfParticipant?.invite_error ? <div className="meta" style={{ color: "#b91c1c", marginTop: 6, maxWidth: 240 }}>Error: {selfParticipant.invite_error}</div> : null}
+                        {selfParticipant?.invite_sent_at ? <div className="meta" style={{ marginTop: 4 }}>Last sent: {new Date(selfParticipant.invite_sent_at).toLocaleString()}</div> : null}
                         <div style={{ height: 6 }} />
                         <div style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, ...submissionBadgeStyle(selfSubmission) }}>
                           {selfSubmission === "not_started" ? "not started" : selfSubmission === "final_submitted" ? "submitted" : "draft"}
@@ -312,6 +328,8 @@ export default function Assessment360HomePage() {
                         <div style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, ...inviteBadgeStyle(managerParticipant?.invite_status ?? "pending") }}>
                           invite: {managerParticipant?.invite_status ?? "pending"}
                         </div>
+                        {managerParticipant?.invite_error ? <div className="meta" style={{ color: "#b91c1c", marginTop: 6, maxWidth: 240 }}>Error: {managerParticipant.invite_error}</div> : null}
+                        {managerParticipant?.invite_sent_at ? <div className="meta" style={{ marginTop: 4 }}>Last sent: {new Date(managerParticipant.invite_sent_at).toLocaleString()}</div> : null}
                         <div style={{ height: 6 }} />
                         <div style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, ...submissionBadgeStyle(managerSubmission) }}>
                           {managerSubmission === "not_started" ? "not started" : managerSubmission === "final_submitted" ? "submitted" : "draft"}
@@ -328,6 +346,8 @@ export default function Assessment360HomePage() {
                           <button className="button ghost" onClick={() => router.push(`/assessment360/${c.id}/report`)}>Report</button>
                           <button className="button ghost" onClick={() => copyText(publicCycleLink)}>Copy self link</button>
                           <button className="button ghost" onClick={() => copyText(publicCycleLink)}>Copy manager link</button>
+                          <button className="button ghost" disabled={busy} onClick={() => resendInvite(c.id, "self")}>Resend self</button>
+                          <button className="button ghost" disabled={busy} onClick={() => resendInvite(c.id, "manager")}>Resend manager</button>
                         </div>
                       </td>
                     </tr>
