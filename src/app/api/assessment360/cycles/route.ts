@@ -146,15 +146,22 @@ export async function POST(req: Request) {
         emailRedirectTo: cycleUrl,
         data: {
           assessment_type: "180-degree capability assessment",
+          assessment_perspective: target.role === "self" ? "self assessment" : "manager assessment",
           role: target.role,
           recipient_name: target.name,
           counterpart_name: counterpart,
+          subject_name: target.role === "manager" ? body.selfName.trim() : body.selfName.trim(),
+          manager_name: body.managerName.trim(),
           cycle_title: body.title.trim(),
           development_focus: "This assessment supports growth and capability development, not performance management.",
+          invitation_summary:
+            target.role === "self"
+              ? `You are invited to complete your self assessment for ${body.title.trim()}.`
+              : `You are invited to complete a manager assessment for ${body.selfName.trim()} as part of ${body.title.trim()}.`,
           guidance:
             target.role === "self"
               ? "Please reflect honestly on demonstrated behaviours and use comments for specific examples."
-              : "Please rate based on observed behaviours and provide constructive, evidence-based feedback.",
+              : `Please complete this from a manager perspective for ${body.selfName.trim()}, rating observed behaviours and adding constructive, evidence-based feedback.`,
           assessment_link: cycleUrl,
         },
       },
