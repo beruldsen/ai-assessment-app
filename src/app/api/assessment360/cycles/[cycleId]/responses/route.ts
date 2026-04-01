@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { ASSESSMENT_360_QUESTIONS, type RaterType } from "@/lib/assessment360";
 import { cycleHasParticipants, getCycleRole, getRequestUser, isAssessmentAdmin } from "@/lib/assessmentAccess";
+import { maybeSendAssessmentCompletionEmails } from "@/lib/assessment360Notifications";
 
 type Ctx = { params: Promise<{ cycleId: string }> };
 
@@ -119,6 +120,10 @@ export async function POST(req: Request, ctx: Ctx) {
     );
 
   if (submissionError) return NextResponse.json({ error: submissionError.message }, { status: 500 });
+
+  if (nextStatus === "final_submitted") {
+    await maybeSendAssessmentCompletionEmails(cycleId);
+  }
 
   return NextResponse.json({ ok: true, count: rows.length, status: nextStatus });
 }

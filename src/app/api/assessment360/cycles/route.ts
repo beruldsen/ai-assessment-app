@@ -220,6 +220,7 @@ export async function POST(req: Request) {
     selfEmail?: string;
     managerName?: string;
     managerEmail?: string;
+    sendCompletionEmail?: boolean;
   };
 
   if (!body.title?.trim() || !body.selfName?.trim() || !body.selfEmail?.trim() || !body.managerName?.trim() || !body.managerEmail?.trim()) {
@@ -239,6 +240,8 @@ export async function POST(req: Request) {
       title: body.title.trim(),
       participant_name: body.selfName.trim(),
       status: "open",
+      send_completion_email: body.sendCompletionEmail ?? true,
+      completion_email_sent_at: null,
     })
     .select("id")
     .single();

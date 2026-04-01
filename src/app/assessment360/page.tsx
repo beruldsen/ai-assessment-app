@@ -37,6 +37,7 @@ export default function Assessment360HomePage() {
   const [selfEmail, setSelfEmail] = useState("");
   const [managerName, setManagerName] = useState("");
   const [managerEmail, setManagerEmail] = useState("");
+  const [sendCompletionEmail, setSendCompletionEmail] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [createdLinks, setCreatedLinks] = useState<{ login: string; self: string; manager: string } | null>(null);
@@ -173,7 +174,7 @@ export default function Assessment360HomePage() {
     const res = await fetch("/api/assessment360/cycles", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-      body: JSON.stringify({ title: title.trim(), selfName: selfName.trim(), selfEmail: selfEmail.trim(), managerName: managerName.trim(), managerEmail: managerEmail.trim() }),
+      body: JSON.stringify({ title: title.trim(), selfName: selfName.trim(), selfEmail: selfEmail.trim(), managerName: managerName.trim(), managerEmail: managerEmail.trim(), sendCompletionEmail }),
     });
 
     const json = await res.json();
@@ -221,6 +222,10 @@ export default function Assessment360HomePage() {
             <input className="input" value={managerEmail} onChange={(e) => setManagerEmail(e.target.value)} placeholder="manager@company.com" disabled={busy} />
             {managerEmail.trim() && !managerEmailValid ? <div className="meta" style={{ color: "#b91c1c" }}>Enter a valid email address.</div> : null}
             {sameEmail ? <div className="meta" style={{ color: "#b91c1c" }}>Self and manager emails must be different.</div> : null}
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input type="checkbox" checked={sendCompletionEmail} onChange={(e) => setSendCompletionEmail(e.target.checked)} disabled={busy} />
+            <span>Send report-ready email to self + manager when both assessments are completed</span>
           </label>
           <div>
             <button className="button" onClick={createCycleAsAdmin} disabled={createDisabled}>
