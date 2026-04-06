@@ -22,9 +22,11 @@ type Metadata = {
   fitAccepted?: boolean;
   fitReason?: string;
   detectedCapability?: Capability | null;
+  forcedAdvance?: boolean;
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
+const MAX_USER_TURNS_PER_CAPABILITY = 4;
 const MIN_EVIDENCE_SCORE_TO_ADVANCE = 3;
 
 const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
@@ -244,18 +246,22 @@ export async function POST(req: Request, ctx: Ctx) {
     } else {
       const updatedUserAnswers = [...userMessages.map((m) => m.transcript_text), content];
       const readyToAdvance = capabilityReadyToAdvance(capability, updatedUserAnswers);
+      const shouldForceAdvance = updatedUserAnswers.length >= MAX_USER_TURNS_PER_CAPABILITY;
 
-      if (readyToAdvance) {
+      if (readyToAdvance || shouldForceAdvance) {
         const next = nextCapability(interview, capability);
         if (next) {
           responseCapability = next;
-          assistant = `${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
+          assistant = shouldForceAdvance && !readyToAdvance
+            ? `Thank you. I have enough to assess ${capability}, even though the evidence is still limited. Let’s move to the next area. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
+            : `${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
           responseMetadata = {
             ...responseMetadata,
             completedCapability: true,
             transitionTo: next,
             probeIndex: 0,
             fitAccepted: true,
+            forcedAdvance: shouldForceAdvance && !readyToAdvance,
           };
         } else {
           assistant = "Thank you. We have now covered the full interview. Please complete the interview so scoring can begin.";
@@ -263,6 +269,7 @@ export async function POST(req: Request, ctx: Ctx) {
             ...responseMetadata,
             completedCapability: true,
             fitAccepted: true,
+            forcedAdvance: shouldForceAdvance && !readyToAdvance,
           };
         }
       } else {
