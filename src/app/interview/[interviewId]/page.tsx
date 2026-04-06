@@ -27,17 +27,13 @@ export default function InterviewPage() {
   const [interview, setInterview] = useState<InterviewState | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState("loading");
-  const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
   const [recordingState, setRecordingState] = useState<"idle" | "recording" | "processing">("idle");
+  const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
   const [content, setContent] = useState("");
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-
-  const SpeechRecognitionCtor = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    return (window as typeof window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
-      ?? (window as typeof window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition
-      ?? null;
-  }, []);
+  const [supportsRecording, setSupportsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const loadInterview = useCallback(async () => {
     if (!interviewId) return;
@@ -52,61 +48,47 @@ export default function InterviewPage() {
     setStatus(json.interview?.status ?? "running");
   }, [interviewId]);
 
-  useMemo(() => {
+  useEffect(() => {
+    setSupportsRecording(typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined");
+  }, []);
+
+  useEffect(() => {
     void loadInterview();
   }, [loadInterview]);
 
-  useEffect(() => {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAssistant?.transcript_text) return;
-    if (!("speechSynthesis" in window)) return;
-    const utterance = new SpeechSynthesisUtterance(lastAssistant.transcript_text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(utterance);
-  }, [messages]);
+  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant"), [messages]);
 
-  function startVoiceInput() {
-    if (!SpeechRecognitionCtor) {
-      setInputMode("text");
-      return;
+  async function playAssistantAudio(text: string) {
+    if (!interviewId || !text.trim()) return;
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play().catch(() => undefined);
+      audio.onended = () => URL.revokeObjectURL(url);
+    } catch {
+      // ignore and fall back silently
     }
-
-    const recognition = new SpeechRecognitionCtor();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => setRecordingState("recording");
-    recognition.onend = () => setRecordingState("idle");
-    recognition.onerror = () => {
-      setRecordingState("idle");
-      setInputMode("text");
-    };
-    recognition.onresult = async (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
-      if (!transcript) return;
-      setRecordingState("processing");
-      await sendMessage(transcript, "voice");
-      setRecordingState("idle");
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
   }
 
-  function stopVoiceInput() {
-    recognitionRef.current?.stop();
-    setRecordingState("idle");
-  }
+  useEffect(() => {
+    if (lastAssistant?.transcript_text) {
+      void playAssistantAudio(lastAssistant.transcript_text);
+    }
+  }, [lastAssistant?.id]);
 
-  async function sendMessage(value: string, mode: "voice" | "text") {
+  async function sendTextMessage(value: string, mode: "voice" | "text") {
     if (!interviewId || !value.trim()) return;
     const res = await fetch(`/api/interviews/${interviewId}/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: value.trim(), inputMode: mode, outputMode: "voice" }),
+      body: JSON.stringify({ content: value.trim(), inputMode: mode, outputMode: "tts" }),
     });
     const json = await res.json();
     if (!res.ok) {
@@ -115,6 +97,63 @@ export default function InterviewPage() {
     }
     setContent("");
     await loadInterview();
+  }
+
+  async function transcribeAudio(blob: Blob) {
+    if (!interviewId) return "";
+    const formData = new FormData();
+    formData.append("file", new File([blob], "answer.webm", { type: blob.type || "audio/webm" }));
+
+    const res = await fetch(`/api/interviews/${interviewId}/audio`, {
+      method: "POST",
+      body: formData,
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error ?? "failed to transcribe audio");
+    }
+    return String(json.text ?? "").trim();
+  }
+
+  async function startRecording() {
+    if (!supportsRecording) {
+      setInputMode("text");
+      return;
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
+    const recorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) audioChunksRef.current.push(event.data);
+    };
+
+    recorder.onstart = () => setRecordingState("recording");
+    recorder.onstop = async () => {
+      setRecordingState("processing");
+      try {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const transcript = await transcribeAudio(blob);
+        if (transcript) {
+          await sendTextMessage(transcript, "voice");
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "voice processing failed";
+        setStatus(`error: ${message}`);
+      } finally {
+        setRecordingState("idle");
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+      }
+    };
+
+    recorder.start();
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
   }
 
   async function completeInterview() {
@@ -130,11 +169,9 @@ export default function InterviewPage() {
   }
 
   function replayLastQuestion() {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAssistant?.transcript_text || !("speechSynthesis" in window)) return;
-    const utterance = new SpeechSynthesisUtterance(lastAssistant.transcript_text);
-    speechSynthesis.cancel();
-    speechSynthesis.speak(utterance);
+    if (lastAssistant?.transcript_text) {
+      void playAssistantAudio(lastAssistant.transcript_text);
+    }
   }
 
   return (
@@ -148,18 +185,19 @@ export default function InterviewPage() {
       <section className="card grid">
         <strong>Current capability</strong>
         <p className="meta">{interview?.current_capability ?? "Loading..."}</p>
-        <div className="meta">Interaction mode: {inputMode === "voice" ? "Voice-first" : "Text fallback"}</div>
+        <div className="meta">Mode: Push-to-talk voice with text fallback</div>
         <div className="meta">Recording state: {recordingState}</div>
       </section>
 
       <section className="card grid">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="button" onClick={startVoiceInput} disabled={recordingState === "recording"}>Start speaking</button>
-          <button className="button ghost" onClick={stopVoiceInput} disabled={recordingState !== "recording"}>Stop</button>
+          <button className="button" onClick={() => void startRecording()} disabled={recordingState === "recording"}>Start recording</button>
+          <button className="button ghost" onClick={stopRecording} disabled={recordingState !== "recording"}>Stop and submit</button>
           <button className="button ghost" onClick={replayLastQuestion}>Replay question</button>
-          <button className="button ghost" onClick={() => setInputMode((m) => (m === "voice" ? "text" : "voice"))}>Use {inputMode === "voice" ? "text fallback" : "voice"}</button>
-          <button className="button ghost" onClick={completeInterview}>Complete interview</button>
+          <button className="button ghost" onClick={() => setInputMode((m) => (m === "voice" ? "text" : "voice"))}>Use {inputMode === "voice" ? "text fallback" : "voice mode"}</button>
+          <button className="button ghost" onClick={() => void completeInterview()}>Complete interview</button>
         </div>
+        {!supportsRecording ? <div className="meta">Browser recording is unavailable here, so text fallback is enabled.</div> : null}
       </section>
 
       <section className="card grid">
@@ -178,7 +216,7 @@ export default function InterviewPage() {
         {inputMode === "text" ? (
           <div style={{ display: "flex", gap: 8 }}>
             <input className="input" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Type only if voice is unavailable..." />
-            <button className="button" onClick={() => void sendMessage(content, "text")} disabled={!content.trim()}>Send</button>
+            <button className="button" onClick={() => void sendTextMessage(content, "text")} disabled={!content.trim()}>Send</button>
           </div>
         ) : null}
       </section>

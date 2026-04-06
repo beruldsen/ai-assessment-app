@@ -1,6 +1,7 @@
 import { config, validateConfig } from "./config";
 import { supabase } from "./supabase";
 import { scoreSimulation } from "./jobs/scoreSimulation";
+import { scoreInterview } from "./jobs/scoreInterview";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -10,7 +11,7 @@ async function fetchPendingJob() {
   const { data, error } = await supabase
     .from("jobs")
     .select("id,type,status,payload,attempts")
-    .eq("type", "score_simulation")
+    .in("type", ["score_simulation", "score_interview"])
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(1)
@@ -104,10 +105,19 @@ async function main() {
       const attempts = await bumpAttempts(job.id);
 
       try {
-        const payload = (job.payload ?? {}) as { attemptId?: string; orgId?: string | null };
-        if (!payload.attemptId) throw new Error("Missing payload.attemptId");
+        const payload = (job.payload ?? {}) as { attemptId?: string; orgId?: string | null; interviewId?: string };
 
-        const result = await scoreSimulation({ attemptId: payload.attemptId, orgId: payload.orgId ?? null });
+        let result: unknown;
+        if (job.type === "score_simulation") {
+          if (!payload.attemptId) throw new Error("Missing payload.attemptId");
+          result = await scoreSimulation({ attemptId: payload.attemptId, orgId: payload.orgId ?? null });
+        } else if (job.type === "score_interview") {
+          if (!payload.interviewId) throw new Error("Missing payload.interviewId");
+          result = await scoreInterview({ interviewId: payload.interviewId });
+        } else {
+          throw new Error(`Unsupported job type: ${job.type}`);
+        }
+
         await completeJob(job.id, result);
         console.log(`[worker] job ${job.id} completed`);
       } catch (e: unknown) {
