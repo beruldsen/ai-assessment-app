@@ -253,7 +253,7 @@ export async function POST(req: Request, ctx: Ctx) {
         if (next) {
           responseCapability = next;
           assistant = shouldForceAdvance && !readyToAdvance
-            ? `Thank you. I have enough to assess ${capability}, even though the evidence is still limited. Let’s move to the next area. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
+            ? `Thank you, that gives me enough context for this area. Let’s move on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
             : `${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
           responseMetadata = {
             ...responseMetadata,
