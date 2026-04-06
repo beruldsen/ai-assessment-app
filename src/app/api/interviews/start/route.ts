@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
+import { supabaseServer } from "@/lib/supabaseServer";
 import { CAPABILITIES, INTERVIEW_PROMPTS, capabilityIntro, type Capability } from "@/lib/capabilityFramework";
 
 export async function POST(req: Request) {
@@ -10,30 +10,42 @@ export async function POST(req: Request) {
     const selected = capabilities.length ? capabilities : [...CAPABILITIES];
     const first = selected[0];
 
-    const interviewId = randomUUID();
+    const { data: interview, error: interviewErr } = await supabaseServer
+      .from("interviews")
+      .insert({
+        org_id: body?.orgId ?? null,
+        user_id: body?.userId ?? null,
+        status: "running",
+        selected_capabilities: selected,
+        current_capability: first,
+      })
+      .select("id,status,selected_capabilities,current_capability,started_at")
+      .single();
+
+    if (interviewErr || !interview) {
+      return NextResponse.json({ error: interviewErr?.message ?? "Failed to start interview" }, { status: 500 });
+    }
 
     const seedMessages = [
-      {
-        id: randomUUID(),
-        sender: "assistant",
-        content: capabilityIntro(first),
-      },
-      {
-        id: randomUUID(),
-        sender: "assistant",
-        content: INTERVIEW_PROMPTS[first][0],
-      },
+      { role: "assistant", transcript_text: capabilityIntro(first), capability: first, metadata: { mode: "voice" } },
+      { role: "assistant", transcript_text: INTERVIEW_PROMPTS[first][0], capability: first, metadata: { mode: "voice" } },
     ];
 
+    const { error: seedErr } = await supabaseServer.from("interview_messages").insert(
+      seedMessages.map((item) => ({ interview_id: interview.id, ...item }))
+    );
+
+    if (seedErr) {
+      return NextResponse.json({ error: seedErr.message }, { status: 500 });
+    }
+
     return NextResponse.json({
-      interviewId,
-      interview: {
-        id: interviewId,
-        status: "running",
-        capabilities: selected,
-        currentCapability: first,
-        currentQuestionIndex: 0,
-        messages: seedMessages,
+      interviewId: interview.id,
+      interview,
+      voice: {
+        mode: "turn_based",
+        input: "microphone_primary",
+        fallback: "text",
       },
     });
   } catch (e: unknown) {

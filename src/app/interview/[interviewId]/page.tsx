@@ -1,90 +1,184 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { CAPABILITIES, INTERVIEW_PROMPTS, capabilityIntro, type Capability } from "@/lib/capabilityFramework";
 
-type Message = { id: string; sender: "user" | "assistant"; content: string };
+type Message = {
+  id: string;
+  capability: string | null;
+  role: "assistant" | "user" | "system";
+  transcript_text: string;
+  audio_url?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string;
+};
 
-function uuid() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+type InterviewState = {
+  id: string;
+  status: "running" | "completed" | "failed";
+  selected_capabilities: string[];
+  current_capability: string | null;
+};
 
 export default function InterviewPage() {
   const params = useParams<{ interviewId: string }>();
   const interviewId = params?.interviewId;
 
-  const [capabilityIndex, setCapabilityIndex] = useState(0);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [messages, setMessages] = useState<Message[]>([
-    { id: uuid(), sender: "assistant", content: capabilityIntro(CAPABILITIES[0]) },
-    { id: uuid(), sender: "assistant", content: INTERVIEW_PROMPTS[CAPABILITIES[0]][0] },
-  ]);
+  const [interview, setInterview] = useState<InterviewState | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [status, setStatus] = useState("loading");
+  const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
+  const [recordingState, setRecordingState] = useState<"idle" | "recording" | "processing">("idle");
   const [content, setContent] = useState("");
-  const [status, setStatus] = useState("running");
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  const currentCapability = CAPABILITIES[capabilityIndex];
-  const prompts = useMemo(() => INTERVIEW_PROMPTS[currentCapability], [currentCapability]);
+  const SpeechRecognitionCtor = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return (window as typeof window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
+      ?? (window as typeof window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition
+      ?? null;
+  }, []);
 
-  function followUp(answer: string, capability: Capability) {
-    const lc = answer.toLowerCase();
-    if (!lc.includes("result") && !lc.includes("outcome")) return "What was the measurable result or business outcome?";
-    if (!lc.includes("i ")) return "What exactly did you do personally in that situation?";
-    if (lc.length < 140) return `Can you give me a more specific example related to ${capability}?`;
-    return "What would you do differently if you handled that situation again?";
-  }
+  const loadInterview = useCallback(async () => {
+    if (!interviewId) return;
+    const res = await fetch(`/api/interviews/${interviewId}`, { cache: "no-store" });
+    const json = await res.json();
+    if (!res.ok) {
+      setStatus(`error: ${json.error ?? "failed to load"}`);
+      return;
+    }
+    setInterview(json.interview ?? null);
+    setMessages(json.messages ?? []);
+    setStatus(json.interview?.status ?? "running");
+  }, [interviewId]);
 
-  function sendMessage() {
-    if (!content.trim()) return;
-    const answer = content.trim();
-    const updated = [...messages, { id: uuid(), sender: "user", content: answer }];
-    const nextQuestionIndex = questionIndex + 1;
+  useMemo(() => {
+    void loadInterview();
+  }, [loadInterview]);
 
-    if (nextQuestionIndex < prompts.length) {
-      updated.push({ id: uuid(), sender: "assistant", content: followUp(answer, currentCapability) });
-      setQuestionIndex(nextQuestionIndex);
-    } else if (capabilityIndex < CAPABILITIES.length - 1) {
-      const nextCapability = CAPABILITIES[capabilityIndex + 1];
-      updated.push({ id: uuid(), sender: "assistant", content: capabilityIntro(nextCapability) });
-      updated.push({ id: uuid(), sender: "assistant", content: INTERVIEW_PROMPTS[nextCapability][0] });
-      setCapabilityIndex((i) => i + 1);
-      setQuestionIndex(0);
-    } else {
-      updated.push({ id: uuid(), sender: "assistant", content: "Thank you. The interview is complete. Your evidence and scores can now be integrated into the shared assessment dashboard." });
-      setStatus("completed");
+  useEffect(() => {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant?.transcript_text) return;
+    if (!("speechSynthesis" in window)) return;
+    const utterance = new SpeechSynthesisUtterance(lastAssistant.transcript_text);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
+  }, [messages]);
+
+  function startVoiceInput() {
+    if (!SpeechRecognitionCtor) {
+      setInputMode("text");
+      return;
     }
 
-    setMessages(updated);
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setRecordingState("recording");
+    recognition.onend = () => setRecordingState("idle");
+    recognition.onerror = () => {
+      setRecordingState("idle");
+      setInputMode("text");
+    };
+    recognition.onresult = async (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
+      if (!transcript) return;
+      setRecordingState("processing");
+      await sendMessage(transcript, "voice");
+      setRecordingState("idle");
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function stopVoiceInput() {
+    recognitionRef.current?.stop();
+    setRecordingState("idle");
+  }
+
+  async function sendMessage(value: string, mode: "voice" | "text") {
+    if (!interviewId || !value.trim()) return;
+    const res = await fetch(`/api/interviews/${interviewId}/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: value.trim(), inputMode: mode, outputMode: "voice" }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setStatus(`error: ${json.error ?? "failed to send"}`);
+      return;
+    }
     setContent("");
+    await loadInterview();
+  }
+
+  async function completeInterview() {
+    if (!interviewId) return;
+    const res = await fetch(`/api/interviews/${interviewId}/complete`, { method: "POST" });
+    const json = await res.json();
+    if (!res.ok) {
+      setStatus(`error: ${json.error ?? "failed to complete"}`);
+      return;
+    }
+    setStatus("completed");
+    await loadInterview();
+  }
+
+  function replayLastQuestion() {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant?.transcript_text || !("speechSynthesis" in window)) return;
+    const utterance = new SpeechSynthesisUtterance(lastAssistant.transcript_text);
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
   }
 
   return (
     <main className="page grid">
       <div>
-        <h1 className="title">Behavioural Interview</h1>
+        <h1 className="title">Voice Behavioural Interview</h1>
         <p className="subtitle">Interview ID: {interviewId}</p>
         <span className="badge">Status: {status}</span>
       </div>
 
       <section className="card grid">
         <strong>Current capability</strong>
-        <p className="meta">{currentCapability}</p>
+        <p className="meta">{interview?.current_capability ?? "Loading..."}</p>
+        <div className="meta">Interaction mode: {inputMode === "voice" ? "Voice-first" : "Text fallback"}</div>
+        <div className="meta">Recording state: {recordingState}</div>
+      </section>
+
+      <section className="card grid">
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="button" onClick={startVoiceInput} disabled={recordingState === "recording"}>Start speaking</button>
+          <button className="button ghost" onClick={stopVoiceInput} disabled={recordingState !== "recording"}>Stop</button>
+          <button className="button ghost" onClick={replayLastQuestion}>Replay question</button>
+          <button className="button ghost" onClick={() => setInputMode((m) => (m === "voice" ? "text" : "voice"))}>Use {inputMode === "voice" ? "text fallback" : "voice"}</button>
+          <button className="button ghost" onClick={completeInterview}>Complete interview</button>
+        </div>
       </section>
 
       <section className="card grid">
         <div className="chatWrap">
           {messages.map((message) => (
-            <div key={message.id} className={`bubble ${message.sender === "user" ? "user" : "assistant"}`}>
-              <div className="meta" style={{ marginBottom: 4 }}>{message.sender === "user" ? "You" : "Interviewer"}</div>
-              {message.content}
+            <div key={message.id} className={`bubble ${message.role === "user" ? "user" : "assistant"}`}>
+              <div className="meta" style={{ marginBottom: 4 }}>
+                {message.role === "user" ? "Candidate" : message.role === "assistant" ? "Interviewer" : "System"}
+                {message.capability ? ` · ${message.capability}` : ""}
+              </div>
+              {message.transcript_text}
             </div>
           ))}
         </div>
 
-        {status !== "completed" ? (
+        {inputMode === "text" ? (
           <div style={{ display: "flex", gap: 8 }}>
-            <input className="input" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Share a real example..." />
-            <button className="button" onClick={sendMessage} disabled={!content.trim()}>Send</button>
+            <input className="input" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Type only if voice is unavailable..." />
+            <button className="button" onClick={() => void sendMessage(content, "text")} disabled={!content.trim()}>Send</button>
           </div>
         ) : null}
       </section>
