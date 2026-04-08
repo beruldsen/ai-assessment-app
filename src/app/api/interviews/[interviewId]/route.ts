@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { buildInterviewReport } from "@/lib/interviewReport";
 
 type Ctx = { params: Promise<{ interviewId: string }> };
 
@@ -38,9 +39,12 @@ export async function GET(_: Request, ctx: Ctx) {
     return NextResponse.json({ error: scoresRes.error.message }, { status: 500 });
   }
 
+  const scores = scoresRes.data ?? [];
+
   return NextResponse.json({
     interview: interviewRes.data,
     messages: messagesRes.data ?? [],
-    scores: scoresRes.data ?? [],
+    scores,
+    report: scores.length ? buildInterviewReport(scores) : null,
   });
 }

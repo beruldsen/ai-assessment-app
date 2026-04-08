@@ -23,11 +23,13 @@ type Metadata = {
   fitReason?: string;
   detectedCapability?: Capability | null;
   forcedAdvance?: boolean;
+  redirectCount?: number;
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
-const MAX_USER_TURNS_PER_CAPABILITY = 4;
-const MIN_EVIDENCE_SCORE_TO_ADVANCE = 3;
+const MAX_USER_TURNS_PER_CAPABILITY = 5;
+const MIN_EVIDENCE_SCORE_TO_ADVANCE = 5;
+const MAX_OFF_TARGET_REDIRECTS = 3;
 
 const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
   "Business Value Discovery & Co-Creation": ["business outcome", "value", "metrics", "adoption", "forecast", "ramp", "problem", "discovery"],
@@ -35,7 +37,7 @@ const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
   "Executive Communication, Storytelling & Presence": ["executive", "simplified", "senior audience", "non-technical", "story", "visual", "pushback", "presentation"],
   "Strategic Account Thinking": ["strategic", "account", "roadmap", "expansion", "long-term", "risk", "transformation", "stakeholder sequencing"],
   "AI Fluency & Human Trust Advantage": ["ai", "llm", "prompt", "automation", "summarize", "judgment", "trust", "verify"],
-  "Technical Credibility & Continuous Learning": ["architecture", "integration", "security", "technical", "solution architect", "diagnose", "design", "learn"],
+  "Technical Credibility & Continuous Learning": ["learned", "learning", "get up to speed", "new technology", "new domain", "stayed ahead", "stay ahead", "capability", "applied it", "applied that learning", "used again", "since then", "curiosity", "evolving"],
 };
 
 function pickCurrentCapability(interview: InterviewRecord): Capability | null {
@@ -71,6 +73,11 @@ function hasOutcomeEvidence(text: string) {
     "shorter",
     "expanded",
     "regained momentum",
+    "decision changed",
+    "moved forward",
+    "adoption",
+    "pipeline",
+    "time to value",
   ].some((token) => lc.includes(token));
 }
 
@@ -100,6 +107,48 @@ function hasSpecificity(text: string) {
   return text.trim().length >= 180;
 }
 
+function hasDecisionLogicEvidence(text: string) {
+  const lc = text.toLowerCase();
+  return [
+    "because",
+    "so that",
+    "i chose",
+    "i decided",
+    "the reason",
+    "my rationale",
+    "trade-off",
+    "constraint",
+  ].some((token) => lc.includes(token));
+}
+
+function hasStakeholderEvidence(text: string) {
+  const lc = text.toLowerCase();
+  return [
+    "stakeholder",
+    "executive",
+    "customer",
+    "buyer",
+    "procurement",
+    "legal",
+    "architect",
+    "cfo",
+    "cio",
+    "vp",
+    "team",
+  ].some((token) => lc.includes(token));
+}
+
+function hasReflectionEvidence(text: string) {
+  const lc = text.toLowerCase();
+  return [
+    "learned",
+    "next time",
+    "would do differently",
+    "in hindsight",
+    "since then",
+  ].some((token) => lc.includes(token));
+}
+
 function hasCapabilityEvidence(capability: Capability, text: string) {
   const lc = text.toLowerCase();
   const rubricSignals = [
@@ -122,6 +171,9 @@ function evidenceScore(capability: Capability, text: string) {
     hasOwnershipEvidence(text),
     hasSpecificity(text),
     hasCapabilityEvidence(capability, text),
+    hasDecisionLogicEvidence(text),
+    hasStakeholderEvidence(text),
+    hasReflectionEvidence(text),
   ].filter(Boolean).length;
 }
 
@@ -137,8 +189,22 @@ function capabilityReadyToAdvance(capability: Capability, userAnswers: string[])
   );
 }
 
-function nextProbe(capability: Capability, probeIndex: number) {
+function nextProbe(capability: Capability, probeIndex: number, text?: string) {
   const rubric = INTERVIEW_RUBRIC[capability];
+  const participantAnswer = text ?? "";
+
+  if (participantAnswer) {
+    if (!hasOwnershipEvidence(participantAnswer)) return "What did you personally do versus what the team did?";
+    if (!hasOutcomeEvidence(participantAnswer)) return "What changed in the business, stakeholder decision, or opportunity because of your actions?";
+    if (!hasDecisionLogicEvidence(participantAnswer)) return "Why did you choose that approach rather than another option?";
+    if (!hasStakeholderEvidence(participantAnswer)) return "Who did you need to influence, and how did they respond?";
+    if (!hasReflectionEvidence(participantAnswer) && probeIndex >= 2) return "What did you learn, or what would you do differently next time?";
+  }
+
+  if (probeIndex >= rubric.probes.length && rubric.hardToFakeProbes.length) {
+    return rubric.hardToFakeProbes[(probeIndex - rubric.probes.length) % rubric.hardToFakeProbes.length] ?? "What was the measurable result?";
+  }
+
   return rubric.probes[Math.min(probeIndex, rubric.probes.length - 1)] ?? "What was the measurable result?";
 }
 
@@ -168,7 +234,7 @@ function redirectForCapability(current: Capability, detected: Capability | null)
   if (detected && detected !== current) {
     return `That example sounds more like ${detected}. For now, stay with ${current}. I’m specifically looking for evidence of ${INTERVIEW_RUBRIC[current].testsFor.slice(0, 2).join(" and ")}. ${currentProbe}`;
   }
-  return `Stay with ${current}. Please answer using a concrete example that directly shows this capability. ${currentProbe}`;
+  return `Stay with ${current}. Use one specific past example and focus on what you personally did, why you did it, who you influenced, and what changed. ${currentProbe}`;
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -209,6 +275,10 @@ export async function POST(req: Request, ctx: Ctx) {
     }
 
     const fit = assessCapabilityFit(capability, content);
+    const allAssistantMessages = (capabilityHistory ?? []).filter((m) => m.role === "assistant");
+    const offTargetRedirects = allAssistantMessages.filter(
+      (m) => (m.metadata as Metadata | null)?.fitReason === "redirected-to-current-capability"
+    ).length;
     const userMessages = (capabilityHistory ?? []).filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
     const probeIndex = userMessages.length;
 
@@ -235,14 +305,34 @@ export async function POST(req: Request, ctx: Ctx) {
     let responseMetadata: Metadata = { outputMode: body?.outputMode ?? "voice" };
 
     if (!fit.fitAccepted) {
-      assistant = redirectForCapability(capability, fit.detectedCapability);
-      responseMetadata = {
-        ...responseMetadata,
-        fitAccepted: false,
-        fitReason: "redirected-to-current-capability",
-        detectedCapability: fit.detectedCapability,
-        probeIndex,
-      };
+      const next = nextCapability(interview, capability);
+      const shouldForceAdvance = offTargetRedirects + 1 >= MAX_OFF_TARGET_REDIRECTS;
+
+      if (shouldForceAdvance && next) {
+        responseCapability = next;
+        assistant = `We have given this area a few tries, so I’m going to move us on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
+        responseMetadata = {
+          ...responseMetadata,
+          completedCapability: true,
+          transitionTo: next,
+          probeIndex: 0,
+          fitAccepted: false,
+          fitReason: "forced-advance-after-off-target-answers",
+          detectedCapability: fit.detectedCapability,
+          forcedAdvance: true,
+          redirectCount: offTargetRedirects + 1,
+        };
+      } else {
+        assistant = redirectForCapability(capability, fit.detectedCapability);
+        responseMetadata = {
+          ...responseMetadata,
+          fitAccepted: false,
+          fitReason: "redirected-to-current-capability",
+          detectedCapability: fit.detectedCapability,
+          probeIndex,
+          redirectCount: offTargetRedirects + 1,
+        };
+      }
     } else {
       const updatedUserAnswers = [...userMessages.map((m) => m.transcript_text), content];
       const readyToAdvance = capabilityReadyToAdvance(capability, updatedUserAnswers);
@@ -282,7 +372,7 @@ export async function POST(req: Request, ctx: Ctx) {
           }
         }
       } else {
-        assistant = nextProbe(capability, probeIndex);
+        assistant = nextProbe(capability, probeIndex, content);
         responseMetadata = {
           ...responseMetadata,
           probeIndex: probeIndex + 1,
@@ -306,6 +396,9 @@ export async function POST(req: Request, ctx: Ctx) {
             `Weak evidence: ${rubric.weakEvidence.join(", ")}`,
             `Core question: ${rubric.coreQuestion}`,
             `Current recommended probe: ${assistant}`,
+            `Evidence ladder for this capability: ${rubric.evidenceLadder.join(" | ")}`,
+            `Hard-to-fake probes for this capability: ${rubric.hardToFakeProbes.join(" | ")}`,
+            `Scoring anchors: ${Object.entries(rubric.scoreAnchors).map(([k, v]) => `${k}=${v}`).join(" | ")}`,
             "Interviewer behaviors to emulate:",
             "- Push for discovery quality, not just activity. Ask how they knew, what they asked, or why they took that view.",
             "- Look for proactive ownership. Ask what they did personally, not what the team or company did.",
@@ -313,16 +406,18 @@ export async function POST(req: Request, ctx: Ctx) {
             "- For communication answers, test audience adaptation, message discipline, and whether they read the room.",
             "- For technical answers, connect technical judgment to business consequence, trust, or deal movement.",
             "- For AI answers, test judgment, validation, and trust, not just tool usage.",
-            "- If the candidate is vague, politely force specificity: one situation, one action, one result.",
+            "- If the participant is vague, politely force specificity: one situation, one action, one result.",
+            "- Actively challenge polished but shallow answers, team masking, strategic language without behaviour, and technical detail without business impact.",
             "- Prefer questions that expose whether they led with business value or jumped too quickly to solution or feature detail.",
             "Rules:",
             "- Stay strictly on the current capability.",
             "- Ask one concise probing question only.",
             "- Use natural spoken language, not competency-framework jargon.",
             "- Avoid stacked multi-part questions unless tightly connected.",
-            "- Push for a real past example, personal ownership, and measurable outcome.",
+            "- Push for a real past example, personal ownership, decision logic, stakeholder movement, and measurable outcome.",
             "- Do not move to a new capability yet.",
-            "- Do not praise the candidate, summarize their answer, or coach them toward the answer.",
+            "- Do not praise the participant, summarize their answer, or coach them toward the answer.",
+            "- Do not reward confidence or fluency unless backed by specific behavioural evidence.",
           ].join("\n");
 
           const completion = await openai.chat.completions.create({

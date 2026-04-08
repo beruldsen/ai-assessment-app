@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { CAPABILITIES, INTERVIEW_PROMPTS, capabilityIntro, type Capability } from "@/lib/capabilityFramework";
+import { CAPABILITIES, INTERVIEW_PROMPTS, interviewWelcomeIntro, capabilityIntro, type Capability } from "@/lib/capabilityFramework";
 
 export async function POST(req: Request) {
   try {
@@ -27,8 +27,9 @@ export async function POST(req: Request) {
     }
 
     const seedMessages = [
-      { role: "assistant", transcript_text: capabilityIntro(first), capability: first, metadata: { mode: "voice" } },
-      { role: "assistant", transcript_text: INTERVIEW_PROMPTS[first][0], capability: first, metadata: { mode: "voice" } },
+      { role: "assistant", transcript_text: interviewWelcomeIntro(), capability: first, metadata: { mode: "voice", kind: "welcome" } },
+      { role: "assistant", transcript_text: capabilityIntro(first), capability: first, metadata: { mode: "voice", kind: "capability_intro" } },
+      { role: "assistant", transcript_text: INTERVIEW_PROMPTS[first][0], capability: first, metadata: { mode: "voice", kind: "question" } },
     ];
 
     const { error: seedErr } = await supabaseServer.from("interview_messages").insert(

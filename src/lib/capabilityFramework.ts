@@ -75,6 +75,14 @@ export const INTERVIEW_PROMPTS: Record<Capability, string[]> = {
   ],
 };
 
+export function interviewWelcomeIntro() {
+  return "Hi, and thanks for taking the time to be part of this interview today. This is a professional and developmental conversation designed to understand how you approach real situations in your work. There are no perfect answers, so the best approach is to use real examples, explain what you did, and talk through what happened. If you need a moment to think before answering, that’s absolutely fine. Great, let’s get started.";
+}
+
 export function capabilityIntro(capability: Capability) {
-  return `We are now focusing on ${capability}. Please answer using a real example from your experience, and I will probe for specifics using the STAR structure.`;
+  if (capability === "Business Value Discovery & Co-Creation") {
+    return "We’ll begin with Business Value Discovery and Co-Creation. I’m interested in how you uncover what really matters for the customer and connect technical possibilities to business value.";
+  }
+
+  return `We are now focusing on ${capability}. Please answer with one real example from your experience.`;
 }
