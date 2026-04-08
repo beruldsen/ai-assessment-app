@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const requested = Array.isArray(body?.capabilities) ? body.capabilities : [];
     const capabilities = requested.filter((item: unknown): item is Capability => CAPABILITIES.includes(item as Capability));
     const selected = capabilities.length ? capabilities : [...CAPABILITIES];
-    const first = selected[0];
+    const first: Capability = selected[0]!;
 
     const { data: interview, error: interviewErr } = await supabaseServer
       .from("interviews")
