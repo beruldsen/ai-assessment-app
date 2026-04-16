@@ -43,6 +43,15 @@ export default function InterviewStartPage() {
       </div>
 
       <section className="card grid">
+        <strong>Before you start</strong>
+        <ul className="meta" style={{ margin: 0, paddingLeft: 18 }}>
+          <li>Set aside focused time. This interview is thoughtful rather than fast.</li>
+          <li>Come with 2 to 3 specific customer situations in mind.</li>
+          <li>Use real examples and explain what you did, why you did it, and what changed.</li>
+        </ul>
+      </section>
+
+      <section className="card grid">
         <strong>Select capabilities</strong>
         <div className="grid">
           {CAPABILITIES.map((capability) => (

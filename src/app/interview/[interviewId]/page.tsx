@@ -45,6 +45,7 @@ export default function InterviewPage() {
   const isPlayingAssistantRef = useRef(false);
   const recordingTimerRef = useRef<number | null>(null);
   const recordingStateRef = useRef(recordingState);
+  const chatWrapRef = useRef<HTMLDivElement | null>(null);
 
   const loadInterview = useCallback(async () => {
     if (!interviewId) return;
@@ -257,6 +258,12 @@ export default function InterviewPage() {
     await loadInterview();
   }
 
+  useEffect(() => {
+    const chatWrap = chatWrapRef.current;
+    if (!chatWrap) return;
+    chatWrap.scrollTo({ top: chatWrap.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
   function replayLastQuestion() {
     if (lastAssistant?.transcript_text) {
       void playAssistantAudio(lastAssistant.transcript_text);
@@ -308,7 +315,7 @@ export default function InterviewPage() {
       </section>
 
       <section className="card grid">
-        <div className="chatWrap">
+        <div className="chatWrap" ref={chatWrapRef}>
           {messages.map((message) => (
             <div key={message.id} className={`bubble ${message.role === "user" ? "user" : "assistant"}`}>
               <div className="meta" style={{ marginBottom: 4 }}>
@@ -349,6 +356,8 @@ export default function InterviewPage() {
             <p className="meta" style={{ margin: "10px 0 0 0" }}>If you are still mid-interview, cancel here and continue with the next response.</p>
           </div>
         ) : null}
+
+        <div className="meta">Tip: the conversation will keep moving downward as new messages appear. If you ever miss the latest question, use Replay question.</div>
 
         {inputMode === "text" ? (
           <div style={{ display: "flex", gap: 8 }}>

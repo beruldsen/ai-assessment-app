@@ -76,7 +76,7 @@ export const INTERVIEW_PROMPTS: Record<Capability, string[]> = {
 };
 
 export function interviewWelcomeIntro() {
-  return "Hi, and thanks for taking the time to be part of this interview today. This is a professional and developmental conversation designed to understand how you approach real situations in your work. There are no perfect answers, so the best approach is to use real examples, explain what you did, and talk through what happened. If you need a moment to think before answering, that’s absolutely fine. Great, let’s get started.";
+  return "Hi, and thanks for taking the time to be part of this interview today. This is a professional and developmental conversation designed to understand how you approach real situations in your work. It works best if you answer using one specific customer situation at a time, explain what you personally did, why you took that approach, who was involved, and what changed as a result. Many strong examples will naturally touch more than one capability area, and if that happens I may steer you toward the angle I need to assess right now. If you need a moment to think before answering, that’s absolutely fine. Great, let’s get started.";
 }
 
 export function capabilityIntro(capability: Capability) {
@@ -84,5 +84,5 @@ export function capabilityIntro(capability: Capability) {
     return "We’ll begin with Business Value Discovery and Co-Creation. I’m interested in how you uncover what really matters for the customer and connect technical possibilities to business value.";
   }
 
-  return `We are now focusing on ${capability}. Please answer with one real example from your experience.`;
+  return `We are now focusing on ${capability}. Please answer with one real example from your experience, and if helpful take a moment to think of a specific customer situation before you begin.`;
 }

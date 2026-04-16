@@ -223,8 +223,9 @@ function detectBestMatchingCapability(text: string): Capability | null {
 
 function assessCapabilityFit(capability: Capability, text: string) {
   const detected = detectBestMatchingCapability(text);
+  const currentScore = CAPABILITY_KEYWORDS[capability].filter((token) => text.toLowerCase().includes(token.toLowerCase())).length;
   return {
-    fitAccepted: detected === null ? true : detected === capability,
+    fitAccepted: detected === null ? true : detected === capability || currentScore >= 1,
     detectedCapability: detected,
   };
 }
@@ -232,7 +233,7 @@ function assessCapabilityFit(capability: Capability, text: string) {
 function redirectForCapability(current: Capability, detected: Capability | null) {
   const currentProbe = INTERVIEW_RUBRIC[current].probes[0];
   if (detected && detected !== current) {
-    return `That example sounds more like ${detected}. For now, stay with ${current}. I’m specifically looking for evidence of ${INTERVIEW_RUBRIC[current].testsFor.slice(0, 2).join(" and ")}. ${currentProbe}`;
+    return `I can hear elements of ${detected} in that example as well. To assess ${current}, stay with the same situation and help me understand the ${INTERVIEW_RUBRIC[current].testsFor.slice(0, 2).join(" and ")} you saw. ${currentProbe}`;
   }
   return `Stay with ${current}. Use one specific past example and focus on what you personally did, why you did it, who you influenced, and what changed. ${currentProbe}`;
 }
@@ -410,12 +411,14 @@ export async function POST(req: Request, ctx: Ctx) {
             "- Actively challenge polished but shallow answers, team masking, strategic language without behaviour, and technical detail without business impact.",
             "- Prefer questions that expose whether they led with business value or jumped too quickly to solution or feature detail.",
             "Rules:",
-            "- Stay strictly on the current capability.",
+            "- Stay strictly on the current capability, but recognize that strong answers may overlap with adjacent capabilities.",
+            "- If an answer partly fits the current capability, do not reject it outright. Briefly acknowledge the relevant part and ask for the missing evidence needed for this capability.",
             "- Ask one concise probing question only.",
             "- Use natural spoken language, not competency-framework jargon.",
             "- Avoid stacked multi-part questions unless tightly connected.",
             "- Push for a real past example, personal ownership, decision logic, stakeholder movement, and measurable outcome.",
             "- Do not move to a new capability yet.",
+            "- Do not sound argumentative, binary, or dismissive when redirecting.",
             "- Do not praise the participant, summarize their answer, or coach them toward the answer.",
             "- Do not reward confidence or fluency unless backed by specific behavioural evidence.",
           ].join("\n");
