@@ -14,7 +14,7 @@ export async function GET(_: Request, ctx: Ctx) {
   const [interviewRes, messagesRes, scoresRes] = await Promise.all([
     supabaseServer
       .from("interviews")
-      .select("id,status,selected_capabilities,current_capability,started_at,completed_at")
+      .select("id,status,selected_capabilities,current_capability,started_at,completed_at,telemetry")
       .eq("id", interviewId)
       .single(),
     supabaseServer
@@ -46,5 +46,6 @@ export async function GET(_: Request, ctx: Ctx) {
     messages: messagesRes.data ?? [],
     scores,
     report: scores.length ? buildInterviewReport(scores) : null,
+    telemetry: interviewRes.data?.telemetry ?? null,
   });
 }

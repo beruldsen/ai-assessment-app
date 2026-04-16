@@ -18,8 +18,16 @@ export async function POST(req: Request) {
         status: "running",
         selected_capabilities: selected,
         current_capability: first,
+        telemetry: {
+          totalResponses: 0,
+          redirectCount: 0,
+          forcedAdvanceCount: 0,
+          lowEvidenceCount: 0,
+          strategicRedirectCount: 0,
+          startedAt: new Date().toISOString(),
+        },
       })
-      .select("id,status,selected_capabilities,current_capability,started_at")
+      .select("id,status,selected_capabilities,current_capability,started_at,telemetry")
       .single();
 
     if (interviewErr || !interview) {

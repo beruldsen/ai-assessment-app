@@ -11,6 +11,7 @@ type InterviewRecord = {
   status: "running" | "completed" | "failed";
   selected_capabilities: Capability[] | null;
   current_capability: Capability | null;
+  telemetry?: Record<string, unknown> | null;
 };
 
 type Metadata = {
@@ -24,6 +25,8 @@ type Metadata = {
   detectedCapability?: Capability | null;
   forcedAdvance?: boolean;
   redirectCount?: number;
+  evidenceScore?: number;
+  strategicSignals?: string[];
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
@@ -149,6 +152,18 @@ function hasReflectionEvidence(text: string) {
   ].some((token) => lc.includes(token));
 }
 
+function strategicSignals(text: string) {
+  const lc = text.toLowerCase();
+  return [
+    ["hypothesis", ["hypothesis", "assumption", "working theory"]],
+    ["bigger_picture", ["bigger picture", "broader", "long-term", "strategic", "account dynamic"]],
+    ["risk_anticipation", ["risk", "blocker", "barrier", "consequence", "downstream"]],
+    ["stakeholder_map", ["stakeholder", "decision maker", "influence", "sequencing", "sponsor"]],
+    ["change_of_tack", ["changed tack", "reframed", "changed approach", "pivoted"]],
+    ["expansion_or_future", ["expansion", "roadmap", "future", "next phase", "longer-term"]],
+  ].filter(([, needles]) => needles.some((token) => lc.includes(token))).map(([label]) => label as string);
+}
+
 function hasCapabilityEvidence(capability: Capability, text: string) {
   const lc = text.toLowerCase();
   const rubricSignals = [
@@ -194,6 +209,15 @@ function nextProbe(capability: Capability, probeIndex: number, text?: string) {
   const participantAnswer = text ?? "";
 
   if (participantAnswer) {
+    if (capability === "Strategic Account Thinking") {
+      const signals = strategicSignals(participantAnswer);
+      if (!signals.includes("hypothesis")) return "What was your working hypothesis about the account, and what evidence led you to that view?";
+      if (!signals.includes("bigger_picture")) return "What bigger picture account dynamic did you see that others were missing?";
+      if (!signals.includes("risk_anticipation")) return "What longer-term risk, blocker, or consequence were you trying to get ahead of?";
+      if (!hasStakeholderEvidence(participantAnswer)) return "Who did you need to influence, and how did that affect the account direction?";
+      if (!hasDecisionLogicEvidence(participantAnswer)) return "Why did you believe changing tack was the right strategic move at that point?";
+      if (!hasOutcomeEvidence(participantAnswer)) return "What changed in the account, relationship, or next phase because you took that view early?";
+    }
     if (!hasOwnershipEvidence(participantAnswer)) return "What did you personally do versus what the team did?";
     if (!hasOutcomeEvidence(participantAnswer)) return "What changed in the business, stakeholder decision, or opportunity because of your actions?";
     if (!hasDecisionLogicEvidence(participantAnswer)) return "Why did you choose that approach rather than another option?";
@@ -249,7 +273,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const { data: interview, error: interviewErr } = await supabaseServer
       .from("interviews")
-      .select("id,status,selected_capabilities,current_capability")
+      .select("id,status,selected_capabilities,current_capability,telemetry")
       .eq("id", interviewId)
       .single<InterviewRecord>();
 
@@ -303,7 +327,12 @@ export async function POST(req: Request, ctx: Ctx) {
 
     let assistant = "";
     let responseCapability = capability;
-    let responseMetadata: Metadata = { outputMode: body?.outputMode ?? "voice" };
+    const answerEvidenceScore = evidenceScore(capability, content);
+    let responseMetadata: Metadata = {
+      outputMode: body?.outputMode ?? "voice",
+      evidenceScore: answerEvidenceScore,
+      strategicSignals: capability === "Strategic Account Thinking" ? strategicSignals(content) : undefined,
+    };
 
     if (!fit.fitAccepted) {
       const next = nextCapability(interview, capability);
@@ -453,14 +482,32 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: insertAssistantErr.message }, { status: 500 });
     }
 
+    const priorTelemetry = (interview.telemetry ?? {}) as Record<string, unknown>;
+    const telemetry = {
+      ...priorTelemetry,
+      totalResponses: Number(priorTelemetry.totalResponses ?? 0) + 1,
+      redirectCount: Number(priorTelemetry.redirectCount ?? 0) + (fit.fitAccepted ? 0 : 1),
+      forcedAdvanceCount: Number(priorTelemetry.forcedAdvanceCount ?? 0) + (responseMetadata.forcedAdvance ? 1 : 0),
+      lowEvidenceCount: Number(priorTelemetry.lowEvidenceCount ?? 0) + (answerEvidenceScore < MIN_EVIDENCE_SCORE_TO_ADVANCE ? 1 : 0),
+      strategicRedirectCount:
+        Number(priorTelemetry.strategicRedirectCount ?? 0) +
+        (!fit.fitAccepted && capability === "Strategic Account Thinking" ? 1 : 0),
+      lastDetectedCapability: fit.detectedCapability,
+      lastCapability: capability,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+
+    const updatePayload: Record<string, unknown> = { telemetry };
     if (responseCapability !== capability) {
-      const { error: updateErr } = await supabaseServer
-        .from("interviews")
-        .update({ current_capability: responseCapability })
-        .eq("id", interviewId);
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 });
-      }
+      updatePayload.current_capability = responseCapability;
+    }
+
+    const { error: updateErr } = await supabaseServer
+      .from("interviews")
+      .update(updatePayload)
+      .eq("id", interviewId);
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
     return NextResponse.json({
