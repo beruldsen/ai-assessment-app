@@ -1,4 +1,5 @@
 import { CAPABILITIES, type Capability } from "@/lib/capabilityFramework";
+import { scoreTone } from "@/lib/interviewReportUi";
 
 export type InterviewScoreRecord = {
   capability: string;
@@ -48,16 +49,16 @@ function toList(value: string[] | null | undefined) {
 
 function capabilityLevel(score: number) {
   if (score >= 4.5) return "Exceptional";
-  if (score >= 3.6) return "Strong";
-  if (score >= 2.8) return "Solid";
+  if (score > 3.5) return "Strong";
+  if (score >= 3) return "Solid";
   if (score >= 2) return "Developing";
   return "Early";
 }
 
 function overallRating(avg: number) {
   if (avg >= 4.5) return "Exceptional";
-  if (avg >= 3.6) return "Strong";
-  if (avg >= 2.8) return "Solid";
+  if (avg > 3.5) return "Strong";
+  if (avg >= 3) return "Solid";
   return "Developing";
 }
 
@@ -123,7 +124,7 @@ export function buildInterviewReport(scores: InterviewScoreRecord[]): InterviewR
 
   const sortedHigh = [...orderedScores].sort((a, b) => b.score - a.score);
   const sortedLow = [...orderedScores].sort((a, b) => a.score - b.score);
-  const patterns = Array.from(new Set(orderedScores.flatMap((s) => toList(s.behavioural_patterns))));
+  const behaviouralInsights = Array.from(new Set(orderedScores.flatMap((s) => toList(s.behavioural_patterns))));
 
   const headlineInsight = sortedHigh.length && sortedLow.length
     ? `${sortedHigh[0].capability} is currently the clearest relative strength, while ${sortedLow[0].capability} is the highest-value development priority.`
@@ -146,7 +147,7 @@ export function buildInterviewReport(scores: InterviewScoreRecord[]): InterviewR
     headlineInsight,
     topStrengths,
     topDevelopmentPriorities,
-    behaviouralInsights: patterns.length ? patterns : ["No strong cross-capability behavioural patterns detected yet."],
+    behaviouralInsights: behaviouralInsights.length ? behaviouralInsights : ["No strong cross-capability behavioural patterns detected yet."],
     strengthsProfile,
     developmentPlan: {
       startDoing: coaching.slice(0, 3).length ? coaching.slice(0, 3) : ["Choose one priority capability and practise the target behaviour in live customer situations each week."],
@@ -166,17 +167,34 @@ export function buildInterviewReport(scores: InterviewScoreRecord[]): InterviewR
         "Look for evidence of proactive learning being applied in live customer situations.",
       ],
     },
-    capabilityBreakdown: orderedScores.map((item) => ({
-      capability: item.capability,
-      score: item.score,
-      level: capabilityLevel(item.score),
-      evidence: item.evidence_summary ?? "No evidence summary available.",
-      strengths: toList(item.strengths),
-      gaps: toList(item.development_areas),
-      benchmark: benchmarkForCapability(item.capability),
-      impactStatement: impactStatement(item.capability, item.score),
-      behaviouralPatterns: toList(item.behavioural_patterns),
-      coachingRecommendations: toList(item.coaching_recommendations),
-    })),
+    capabilityBreakdown: orderedScores.map((item) => {
+      const tone = scoreTone(item.score);
+      const defaultStrengths = tone === "strong"
+        ? ["Consistently demonstrates a high-value Sales Engineering behaviour in this capability."]
+        : [];
+      const defaultGaps = tone === "mid"
+        ? ["Would benefit from more consistency, sharper examples, and stronger transfer into live strategic situations."]
+        : tone === "low"
+          ? ["Needs clearer, more repeatable evidence of this capability in live customer and deal situations."]
+          : [];
+      const defaultRecommendations = tone === "strong"
+        ? ["Leverage this strength more deliberately in strategic customer conversations, mentoring, and complex deal shaping."]
+        : tone === "mid"
+          ? ["Practice this capability more intentionally in live opportunities, with explicit reflection on what worked and what to improve."]
+          : ["Prioritize this area in manager coaching, role-play, and live deal observation with clear behavioural checkpoints."];
+
+      return {
+        capability: item.capability,
+        score: item.score,
+        level: capabilityLevel(item.score),
+        evidence: item.evidence_summary ?? "No evidence summary available.",
+        strengths: toList(item.strengths).length ? toList(item.strengths) : defaultStrengths,
+        gaps: toList(item.development_areas).length ? toList(item.development_areas) : defaultGaps,
+        benchmark: benchmarkForCapability(item.capability),
+        impactStatement: impactStatement(item.capability, item.score),
+        behaviouralPatterns: toList(item.behavioural_patterns),
+        coachingRecommendations: toList(item.coaching_recommendations).length ? toList(item.coaching_recommendations) : defaultRecommendations,
+      };
+    }),
   };
 }

@@ -11,7 +11,6 @@ type InterviewRecord = {
   status: "running" | "completed" | "failed";
   selected_capabilities: Capability[] | null;
   current_capability: Capability | null;
-  telemetry?: Record<string, unknown> | null;
 };
 
 type Metadata = {
@@ -154,14 +153,18 @@ function hasReflectionEvidence(text: string) {
 
 function strategicSignals(text: string) {
   const lc = text.toLowerCase();
-  return [
+  const signalMap: Array<[string, string[]]> = [
     ["hypothesis", ["hypothesis", "assumption", "working theory"]],
     ["bigger_picture", ["bigger picture", "broader", "long-term", "strategic", "account dynamic"]],
     ["risk_anticipation", ["risk", "blocker", "barrier", "consequence", "downstream"]],
     ["stakeholder_map", ["stakeholder", "decision maker", "influence", "sequencing", "sponsor"]],
     ["change_of_tack", ["changed tack", "reframed", "changed approach", "pivoted"]],
     ["expansion_or_future", ["expansion", "roadmap", "future", "next phase", "longer-term"]],
-  ].filter(([, needles]) => needles.some((token) => lc.includes(token))).map(([label]) => label as string);
+  ];
+
+  return signalMap
+    .filter(([, needles]) => needles.some((token) => lc.includes(token)))
+    .map(([label]) => label);
 }
 
 function hasCapabilityEvidence(capability: Capability, text: string) {
@@ -273,7 +276,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const { data: interview, error: interviewErr } = await supabaseServer
       .from("interviews")
-      .select("id,status,selected_capabilities,current_capability,telemetry")
+      .select("id,status,selected_capabilities,current_capability")
       .eq("id", interviewId)
       .single<InterviewRecord>();
 
@@ -482,30 +485,17 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: insertAssistantErr.message }, { status: 500 });
     }
 
-    const priorTelemetry = (interview.telemetry ?? {}) as Record<string, unknown>;
-    const telemetry = {
-      ...priorTelemetry,
-      totalResponses: Number(priorTelemetry.totalResponses ?? 0) + 1,
-      redirectCount: Number(priorTelemetry.redirectCount ?? 0) + (fit.fitAccepted ? 0 : 1),
-      forcedAdvanceCount: Number(priorTelemetry.forcedAdvanceCount ?? 0) + (responseMetadata.forcedAdvance ? 1 : 0),
-      lowEvidenceCount: Number(priorTelemetry.lowEvidenceCount ?? 0) + (answerEvidenceScore < MIN_EVIDENCE_SCORE_TO_ADVANCE ? 1 : 0),
-      strategicRedirectCount:
-        Number(priorTelemetry.strategicRedirectCount ?? 0) +
-        (!fit.fitAccepted && capability === "Strategic Account Thinking" ? 1 : 0),
-      lastDetectedCapability: fit.detectedCapability,
-      lastCapability: capability,
-      lastUpdatedAt: new Date().toISOString(),
-    };
-
-    const updatePayload: Record<string, unknown> = { telemetry };
+    const updatePayload: Record<string, unknown> = {};
     if (responseCapability !== capability) {
       updatePayload.current_capability = responseCapability;
     }
 
-    const { error: updateErr } = await supabaseServer
-      .from("interviews")
-      .update(updatePayload)
-      .eq("id", interviewId);
+    const { error: updateErr } = Object.keys(updatePayload).length
+      ? await supabaseServer
+          .from("interviews")
+          .update(updatePayload)
+          .eq("id", interviewId)
+      : { error: null };
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }

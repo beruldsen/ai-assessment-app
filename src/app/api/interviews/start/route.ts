@@ -10,24 +10,18 @@ export async function POST(req: Request) {
     const selected = capabilities.length ? capabilities : [...CAPABILITIES];
     const first: Capability = selected[0]!;
 
+    const insertPayload = {
+      org_id: body?.orgId ?? null,
+      user_id: body?.userId ?? null,
+      status: "running",
+      selected_capabilities: selected,
+      current_capability: first,
+    };
+
     const { data: interview, error: interviewErr } = await supabaseServer
       .from("interviews")
-      .insert({
-        org_id: body?.orgId ?? null,
-        user_id: body?.userId ?? null,
-        status: "running",
-        selected_capabilities: selected,
-        current_capability: first,
-        telemetry: {
-          totalResponses: 0,
-          redirectCount: 0,
-          forcedAdvanceCount: 0,
-          lowEvidenceCount: 0,
-          strategicRedirectCount: 0,
-          startedAt: new Date().toISOString(),
-        },
-      })
-      .select("id,status,selected_capabilities,current_capability,started_at,telemetry")
+      .insert(insertPayload)
+      .select("id,status,selected_capabilities,current_capability,started_at")
       .single();
 
     if (interviewErr || !interview) {

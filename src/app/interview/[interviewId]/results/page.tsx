@@ -4,6 +4,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import InterviewRadarChart from "@/components/InterviewRadarChart";
+import { scoreTone, toneClass, toneLabel } from "@/lib/interviewReportUi";
 
 type InterviewScore = {
   id: string;
@@ -48,13 +50,6 @@ type InterviewReport = {
   }>;
 };
 
-function scoreTone(score: number) {
-  if (score >= 4.5) return "success";
-  if (score >= 3.6) return "secondary";
-  if (score >= 2.8) return "primary";
-  return "warning";
-}
-
 export default function InterviewResultsPage() {
   const params = useParams<{ interviewId: string }>();
   const interviewId = params?.interviewId;
@@ -88,16 +83,21 @@ export default function InterviewResultsPage() {
 
   const strongest = useMemo(() => [...scores].sort((a, b) => b.score - a.score)[0], [scores]);
   const weakest = useMemo(() => [...scores].sort((a, b) => a.score - b.score)[0], [scores]);
+  const averageTone = report ? scoreTone(report.overallAverage) : "mid";
 
   return (
-    <main className="page grid report-print-page">
-      <div className="card surface-hero" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <main className="page grid report-page-shell report-print-page">
+      <div className="card surface-hero report-hero">
         <div>
-          <h1 className="title" style={{ marginBottom: 4 }}>Behavioural Interview Report</h1>
-          <p className="subtitle" style={{ marginBottom: 8 }}>Interview ID: {interviewId}</p>
-          <span className="badge">Status: {status}</span>
+          <div className="eyebrow">AI Behavioural Interview Report</div>
+          <h1 className="title" style={{ marginBottom: 6 }}>Sales Engineering Executive Assessment</h1>
+          <p className="subtitle" style={{ marginBottom: 10 }}>Professional capability review with client-ready narrative, visual scoring, and development priorities.</p>
+          <div className="report-chip-row">
+            <span className="badge">Interview ID: {interviewId}</span>
+            <span className={`badge ${toneClass(report?.overallAverage ?? 3)}`}>Status: {status}</span>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link href={`/interview/${interviewId}`} className="button ghost" style={{ textDecoration: "none" }}>Back to interview</Link>
           <Link href={`/interview/${interviewId}/results/print`} className="button" style={{ textDecoration: "none" }}>Open print / PDF view</Link>
         </div>
@@ -108,112 +108,173 @@ export default function InterviewResultsPage() {
           <p className="meta">Scoring in progress or no report available yet.</p>
         </section>
       ) : (
-        <div className="report-print-safe">
-          <section className="report-sheet">
-            <div className="report-sheet-header">
+        <div className="report-print-safe report-stack-lg">
+          <section className="report-sheet report-sheet-premium">
+            <div className="report-sheet-header report-grid-2">
               <div>
-                <div className="report-sheet-title">AI Behavioural Interview Report</div>
-                <div className="report-sheet-meta">Sales Engineering capability assessment</div>
+                <div className="report-sheet-title">Executive summary</div>
+                <div className="report-sheet-meta">A concise view of current capability profile, strengths, and highest-value development priorities.</div>
               </div>
-              <div className="report-sheet-meta report-sheet-meta-right">
-                <div>Overall rating: {report.overallRating}</div>
-                <div>Overall average: {report.overallAverage}/5</div>
+              <div className={`report-summary-pill ${toneClass(report.overallAverage)}`}>
+                <div className="report-summary-pill-label">Overall rating</div>
+                <div className="report-summary-pill-value">{report.overallRating}</div>
+                <div className="report-summary-pill-sub">Average {report.overallAverage}/5</div>
               </div>
             </div>
 
-            <div className="report-sheet-section">
-              <h2>Executive summary</h2>
-              <div className="print-kpi-grid">
-                <div className="print-kpi-box"><strong>Overall rating</strong><span>{report.overallRating}</span></div>
-                <div className="print-kpi-box"><strong>Overall average</strong><span>{report.overallAverage}/5</span></div>
-                <div className="print-kpi-box"><strong>Strongest capability</strong><span>{strongest?.capability ?? "-"}</span></div>
-                <div className="print-kpi-box"><strong>Top development priority</strong><span>{weakest?.capability ?? "-"}</span></div>
+            <div className="report-score-grid">
+              <div className={`report-kpi-card ${toneClass(report.overallAverage)}`}>
+                <div className="report-kpi-label">Overall signal</div>
+                <div className="report-kpi-value">{toneLabel(report.overallAverage)}</div>
+                <div className="report-kpi-sub">{report.overallRating}</div>
               </div>
-              <div className="print-text-block" style={{ marginTop: 10 }}>
+              <div className={`report-kpi-card ${strongest ? toneClass(strongest.score) : "score-strong"}`}>
+                <div className="report-kpi-label">Strongest capability</div>
+                <div className="report-kpi-value report-kpi-small">{strongest?.capability ?? "-"}</div>
+                <div className="report-kpi-sub">{strongest ? `${strongest.score}/5` : ""}</div>
+              </div>
+              <div className={`report-kpi-card ${weakest ? toneClass(weakest.score) : "score-low"}`}>
+                <div className="report-kpi-label">Top development priority</div>
+                <div className="report-kpi-value report-kpi-small">{weakest?.capability ?? "-"}</div>
+                <div className="report-kpi-sub">{weakest ? `${weakest.score}/5` : ""}</div>
+              </div>
+            </div>
+
+            <div className="report-grid-2 report-section-gap">
+              <div className="print-text-block report-insight-card">
+                <div className="section-icon">✦</div>
                 <strong>Headline insight</strong>
-                <div className="meta" style={{ marginTop: 4 }}>{report.headlineInsight}</div>
+                <p className="meta" style={{ marginTop: 8 }}>{report.headlineInsight}</p>
               </div>
-            </div>
-
-            <div className="report-sheet-section">
-              <h2>Top strengths</h2>
-              <div className="print-legend-list">
-                {report.topStrengths.map((item) => (
-                  <div key={item} className="print-legend-item">{item}</div>
-                ))}
-              </div>
-            </div>
-
-            <div className="report-sheet-section">
-              <h2>Top development priorities</h2>
-              <div className="print-legend-list">
-                {report.topDevelopmentPriorities.map((item) => (
-                  <div key={item} className="print-legend-item">{item}</div>
-                ))}
+              <div className="print-text-block report-legend-card">
+                <strong>Score guide</strong>
+                <div className="report-legend-list" style={{ marginTop: 10 }}>
+                  <div className="report-legend-entry"><span className="report-swatch score-strong" /> Green, strong capability signal, above 3.5</div>
+                  <div className="report-legend-entry"><span className="report-swatch score-mid" /> Amber, developing or mixed evidence, around 3</div>
+                  <div className="report-legend-entry"><span className="report-swatch score-low" /> Red, lower confidence area, below 3</div>
+                </div>
               </div>
             </div>
           </section>
 
-          <section className="report-sheet">
+          <section className="report-sheet report-sheet-premium">
+            <div className="report-grid-2 report-grid-2-balanced">
+              <div>
+                <div className="report-sheet-title">Capability radar</div>
+                <div className="report-sheet-meta">Visual view of current Sales Engineering capability profile across all assessed areas.</div>
+                <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} />
+              </div>
+              <div>
+                <div className="report-sheet-title">Strengths and priorities</div>
+                <div className="report-section-block">
+                  <h3>Top strengths</h3>
+                  <div className="report-bullet-list">
+                    {report.topStrengths.map((item) => (
+                      <div key={item} className="report-bullet-item score-strong">✓ {item}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="report-section-block">
+                  <h3>Top development priorities</h3>
+                  <div className="report-bullet-list">
+                    {report.topDevelopmentPriorities.map((item) => (
+                      <div key={item} className="report-bullet-item score-low">→ {item}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="report-section-block">
+                  <h3>Behavioural insights</h3>
+                  <div className="report-bullet-list compact">
+                    {report.behaviouralInsights.map((item) => (
+                      <div key={item} className="report-bullet-item score-mid">• {item}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="report-sheet report-sheet-premium">
             <div className="report-sheet-section">
               <h2>Capability breakdown</h2>
-              <div className="grid">
+              <div className="report-capability-grid">
                 {report.capabilityBreakdown.map((item) => (
-                  <div key={item.capability} className="card" style={{ padding: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                      <strong>{item.capability}</strong>
-                      <span className={`badge ${scoreTone(item.score) === "success" ? "success" : ""}`}>Score: {item.score}/5 · {item.level}</span>
+                  <div key={item.capability} className={`report-capability-card ${toneClass(item.score)}`}>
+                    <div className="report-capability-header">
+                      <div>
+                        <strong>{item.capability}</strong>
+                        <div className="meta">{item.level} capability signal</div>
+                      </div>
+                      <span className={`badge ${toneClass(item.score)}`}>{item.score}/5</span>
                     </div>
-                    <p style={{ marginBottom: 8 }}>{item.evidence}</p>
-                    <div className="meta" style={{ marginBottom: 6 }}><strong>Benchmark:</strong> {item.benchmark}</div>
-                    <div className="meta" style={{ marginBottom: 10 }}><strong>Impact:</strong> {item.impactStatement}</div>
-                    {item.strengths.length ? <div className="meta" style={{ marginBottom: 6 }}><strong>Strengths:</strong> {item.strengths.join("; ")}</div> : null}
-                    {item.gaps.length ? <div className="meta" style={{ marginBottom: 6 }}><strong>Gaps vs high performance:</strong> {item.gaps.join("; ")}</div> : null}
-                    {item.behaviouralPatterns.length ? <div className="meta" style={{ marginBottom: 6 }}><strong>Patterns:</strong> {item.behaviouralPatterns.join("; ")}</div> : null}
-                    {item.coachingRecommendations.length ? <div className="meta"><strong>Recommended next steps:</strong> {item.coachingRecommendations.join("; ")}</div> : null}
+                    <p className="report-summary-text">{item.evidence}</p>
+                    <div className="report-mini-block"><strong>Benchmark</strong><span>{item.benchmark}</span></div>
+                    <div className="report-mini-block"><strong>Client impact</strong><span>{item.impactStatement}</span></div>
+                    <div className="report-mini-grid">
+                      <div>
+                        <strong>Strengths to leverage</strong>
+                        <ul>
+                          {item.strengths.map((entry) => <li key={entry}>{entry}</li>)}
+                        </ul>
+                      </div>
+                      <div>
+                        <strong>Development focus</strong>
+                        <ul>
+                          {item.gaps.map((entry) => <li key={entry}>{entry}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                    {item.coachingRecommendations.length ? (
+                      <div className="report-mini-block">
+                        <strong>Recommended next steps</strong>
+                        <ul>
+                          {item.coachingRecommendations.map((entry) => <li key={entry}>{entry}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
             </div>
           </section>
 
-          <section className="report-sheet">
-            <div className="report-sheet-section">
-              <h2>Strengths profile</h2>
-              <div className="print-legend-list">
-                {report.strengthsProfile.map((item) => (
-                  <div key={item} className="print-legend-item">{item}</div>
-                ))}
+          <section className="report-sheet report-sheet-premium">
+            <div className="report-grid-2">
+              <div className="report-section-block">
+                <h2>Strengths profile</h2>
+                <div className="report-bullet-list">
+                  {report.strengthsProfile.map((item) => (
+                    <div key={item} className="report-bullet-item score-strong">✓ {item}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="report-section-block">
+                <h2>Manager coaching guide</h2>
+                <div className="report-mini-block"><strong>Support actions</strong><ul>{report.managerCoachingGuide.supportActions.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                <div className="report-mini-block"><strong>Coaching questions</strong><ul>{report.managerCoachingGuide.coachingQuestions.map((item) => <li key={item}>{item}</li>)}</ul></div>
               </div>
             </div>
           </section>
 
-          <section className="report-sheet">
+          <section className="report-sheet report-sheet-premium">
             <div className="report-sheet-section">
               <h2>Practical development plan</h2>
-              <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-                <div className="print-text-block">
+              <div className="report-grid-3">
+                <div className="print-text-block score-strong">
                   <strong>Start doing</strong>
-                  <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
-                    {report.developmentPlan.startDoing.map((item) => <li key={item}>{item}</li>)}
-                  </ul>
+                  <ul>{report.developmentPlan.startDoing.map((item) => <li key={item}>{item}</li>)}</ul>
                 </div>
-                <div className="print-text-block">
+                <div className="print-text-block score-low">
                   <strong>Stop doing</strong>
-                  <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
-                    {report.developmentPlan.stopDoing.map((item) => <li key={item}>{item}</li>)}
-                  </ul>
+                  <ul>{report.developmentPlan.stopDoing.map((item) => <li key={item}>{item}</li>)}</ul>
                 </div>
-                <div className="print-text-block">
+                <div className="print-text-block score-mid">
                   <strong>Do more of</strong>
-                  <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
-                    {report.developmentPlan.doMoreOf.map((item) => <li key={item}>{item}</li>)}
-                  </ul>
+                  <ul>{report.developmentPlan.doMoreOf.map((item) => <li key={item}>{item}</li>)}</ul>
                 </div>
               </div>
             </div>
           </section>
-
         </div>
       )}
     </main>
