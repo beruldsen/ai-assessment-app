@@ -11,41 +11,23 @@ type InterviewScore = {
   id: string;
   capability: string;
   score: number;
-  evidence_summary: string | null;
-  strengths: string[];
-  development_areas: string[];
-  behavioural_patterns: string[];
-  coaching_recommendations: string[];
 };
 
 type InterviewReport = {
   overallRating: string;
   overallAverage: number;
-  headlineInsight: string;
+  executiveSummary: string[];
   topStrengths: string[];
   topDevelopmentPriorities: string[];
-  behaviouralInsights: string[];
-  strengthsProfile: string[];
-  executiveNarrative: string;
-  evidenceHighlights: Array<{ capability: string; quote: string; whyItMatters: string }>;
-  developmentPlan: {
-    startDoing: string[];
-    stopDoing: string[];
-    doMoreOf: string[];
-  };
   capabilityBreakdown: Array<{
     capability: string;
     score: number;
     level: string;
-    evidence: string;
-    scoreRationale: string;
+    signalLabel: string;
+    summary: string;
     strengths: string[];
     gaps: string[];
-    benchmark: string;
-    impactStatement: string;
-    coachingRecommendations: string[];
-    interviewInsight: string;
-    participantEvidence: string[];
+    nextStep: string;
   }>;
 };
 
@@ -79,7 +61,7 @@ export default function InterviewPrintPage() {
       <div className="card surface-hero" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div>
           <h1 className="title" style={{ marginBottom: 4 }}>Print / PDF Behavioural Interview Report</h1>
-          <p className="subtitle" style={{ marginBottom: 8 }}>Designed for client-facing export and executive review.</p>
+          <p className="subtitle" style={{ marginBottom: 8 }}>Short, sharp, sales-focused client-facing assessment format.</p>
           <span className="badge">Status: {status}</span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -97,15 +79,20 @@ export default function InterviewPrintPage() {
           <section className="report-sheet report-sheet-premium">
             <div className="report-sheet-header">
               <div>
-                <div className="report-sheet-title">AI Behavioural Interview Executive Assessment</div>
+                <div className="report-sheet-title">Sales Engineering Capability Assessment</div>
                 <div className="report-sheet-meta">Interview ID: {interviewId}</div>
-                <p className="meta" style={{ marginTop: 10 }}>{report.executiveNarrative}</p>
               </div>
               <div className={`report-summary-pill ${toneClass(report.overallAverage)}`}>
                 <div className="report-summary-pill-label">Overall rating</div>
                 <div className="report-summary-pill-value">{report.overallRating}</div>
                 <div className="report-summary-pill-sub">Average {report.overallAverage}/5</div>
               </div>
+            </div>
+
+            <div className="report-bullet-list">
+              {report.executiveSummary.map((item) => (
+                <div key={item} className="report-bullet-item">• {item}</div>
+              ))}
             </div>
           </section>
 
@@ -116,15 +103,13 @@ export default function InterviewPrintPage() {
                 <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} printMode />
               </div>
               <div>
-                <h2>Interview evidence highlights</h2>
-                <div className="report-quote-list">
-                  {report.evidenceHighlights.map((item) => (
-                    <div key={item.capability} className="report-quote-card">
-                      <div className={`report-quote-tag ${toneClass(report.capabilityBreakdown.find((row) => row.capability === item.capability)?.score ?? 3)}`}>{item.capability}</div>
-                      <blockquote>{item.quote}</blockquote>
-                      <p>{item.whyItMatters}</p>
-                    </div>
-                  ))}
+                <h2>Key strengths</h2>
+                <div className="report-bullet-list">
+                  {report.topStrengths.map((item) => <div key={item} className="report-bullet-item score-strong">✓ {item}</div>)}
+                </div>
+                <h2 style={{ marginTop: 18 }}>Key development priorities</h2>
+                <div className="report-bullet-list">
+                  {report.topDevelopmentPriorities.map((item) => <div key={item} className="report-bullet-item score-low">→ {item}</div>)}
                 </div>
               </div>
             </div>
@@ -138,26 +123,22 @@ export default function InterviewPrintPage() {
                   <div className="report-capability-header">
                     <div>
                       <strong>{item.capability}</strong>
-                      <div className="meta">{item.level}</div>
+                      <div className="meta">{item.signalLabel}</div>
                     </div>
                     <span className={`badge ${toneClass(item.score)}`}>{item.score}/5</span>
                   </div>
-                  <div className="report-mini-block"><strong>Reason for score</strong><span>{item.scoreRationale}</span></div>
-                  {item.participantEvidence.length ? <div className="report-mini-block"><strong>What the participant said</strong><ul>{item.participantEvidence.map((entry) => <li key={entry}>{entry}</li>)}</ul></div> : null}
-                  <div className="report-mini-block"><strong>Interview insight</strong><span>{item.interviewInsight}</span></div>
-                  <div className="report-mini-block"><strong>Assessment summary</strong><span>{item.evidence}</span></div>
-                  <div className="report-mini-block"><strong>Benchmark</strong><span>{item.benchmark}</span></div>
+                  <div className="report-mini-block"><strong>Capability summary</strong><span>{item.summary}</span></div>
                   <div className="report-mini-grid">
                     <div>
-                      <strong>Strengths</strong>
+                      <strong>Strengths demonstrated</strong>
                       <ul>{item.strengths.map((entry) => <li key={entry}>{entry}</li>)}</ul>
                     </div>
                     <div>
-                      <strong>Development focus</strong>
+                      <strong>Development gaps</strong>
                       <ul>{item.gaps.map((entry) => <li key={entry}>{entry}</li>)}</ul>
                     </div>
                   </div>
-                  <div className="report-mini-block"><strong>Recommended next steps</strong><ul>{item.coachingRecommendations.map((entry) => <li key={entry}>{entry}</li>)}</ul></div>
+                  <div className="report-mini-block"><strong>Practical next step</strong><span>{item.nextStep}</span></div>
                 </div>
               ))}
             </div>

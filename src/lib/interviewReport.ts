@@ -20,41 +20,18 @@ export type InterviewMessageRecord = {
 export type InterviewReport = {
   overallRating: string;
   overallAverage: number;
-  headlineInsight: string;
+  executiveSummary: string[];
   topStrengths: string[];
   topDevelopmentPriorities: string[];
-  behaviouralInsights: string[];
-  strengthsProfile: string[];
-  executiveNarrative: string;
-  evidenceHighlights: Array<{
-    capability: string;
-    quote: string;
-    whyItMatters: string;
-  }>;
-  developmentPlan: {
-    startDoing: string[];
-    stopDoing: string[];
-    doMoreOf: string[];
-  };
-  managerCoachingGuide: {
-    supportActions: string[];
-    coachingQuestions: string[];
-    liveDealObservations: string[];
-  };
   capabilityBreakdown: Array<{
     capability: string;
     score: number;
     level: string;
-    evidence: string;
-    scoreRationale: string;
+    signalLabel: string;
+    summary: string;
     strengths: string[];
     gaps: string[];
-    benchmark: string;
-    impactStatement: string;
-    behaviouralPatterns: string[];
-    coachingRecommendations: string[];
-    interviewInsight: string;
-    participantEvidence: string[];
+    nextStep: string;
   }>;
 };
 
@@ -77,117 +54,125 @@ function overallRating(avg: number) {
   return "Developing";
 }
 
-function benchmarkForCapability(capability: string) {
-  switch (capability as Capability) {
-    case "Business Value Discovery & Co-Creation":
-      return "Strong SEs uncover the real business problem, quantify value, and co-create success criteria rather than staying at feature level.";
-    case "Customer & Internal Influence / Collaboration":
-      return "Strong SEs actively orchestrate stakeholders, influence without authority, and create decision movement across internal and customer groups.";
-    case "Executive Communication, Storytelling & Presence":
-      return "Strong SEs adapt to senior audiences, translate complexity into business relevance, and maintain credibility under challenge.";
-    case "Strategic Account Thinking":
-      return "Strong SEs think beyond the immediate deal, anticipate risks early, and shape longer-term account direction.";
-    case "AI Fluency & Human Trust Advantage":
-      return "Strong SEs use AI with judgement, validate outputs carefully, and combine speed with trust and credibility.";
-    case "Technical Credibility & Continuous Learning":
-      return "Strong SEs do more than demonstrate technical competence. They proactively build new capability, stay ahead of change, and apply fresh learning to improve customer and business outcomes.";
-    default:
-      return "Strong SEs show clear behavioural evidence, not just polished language or generic claims.";
-  }
+function joinShort(items: string[], max = 2) {
+  return items.slice(0, max).join(" ");
 }
 
-function impactStatement(capability: string, score: number) {
-  const level = capabilityLevel(score);
-  switch (capability as Capability) {
-    case "Business Value Discovery & Co-Creation":
-      return level === "Strong" || level === "Exceptional"
-        ? "This suggests the individual can elevate customer conversations from product need to business value and help shape stronger opportunities."
-        : "This suggests customer conversations may stay too close to surface requirements, limiting value creation and differentiation.";
-    case "Customer & Internal Influence / Collaboration":
-      return level === "Strong" || level === "Exceptional"
-        ? "This suggests the individual can create alignment across stakeholders and help opportunities move with less drift and fewer avoidable blockers."
-        : "This suggests stakeholder complexity may slow momentum, with too much reliance on others to create alignment or resolve tension.";
-    case "Executive Communication, Storytelling & Presence":
-      return level === "Strong" || level === "Exceptional"
-        ? "This suggests the individual can engage senior audiences effectively and translate complexity into credible decision-oriented conversations."
-        : "This suggests technical credibility may not yet convert into executive clarity, confidence, or influence in high-stakes conversations.";
-    case "Strategic Account Thinking":
-      return level === "Strong" || level === "Exceptional"
-        ? "This suggests the individual can shape account direction beyond immediate deal support and contribute to longer-term growth and risk reduction."
-        : "This suggests the individual may operate too reactively, missing chances to shape account direction or spot downstream risk early.";
-    case "AI Fluency & Human Trust Advantage":
-      return level === "Strong" || level === "Exceptional"
-        ? "This suggests the individual can use AI to improve leverage while preserving judgement, trust, and customer confidence."
-        : "This suggests AI use may be inconsistent, overly generic, or insufficiently tied to judgement and trust in customer-facing work.";
-    case "Technical Credibility & Continuous Learning":
-      return level === "Strong" || level === "Exceptional"
-        ? "This suggests the individual is not only technically credible, but also evolves their capability proactively and applies new knowledge in ways that improve outcomes."
-        : "This suggests technical capability may be more static than adaptive, with limited evidence of proactive learning translated into customer or business impact.";
-    default:
-      return "This reflects the likely impact of the observed behaviour in real customer situations.";
-  }
+function firstSentence(text: string | null | undefined) {
+  const clean = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  const match = clean.match(/.*?[.!?](\s|$)/);
+  return (match ? match[0] : clean).trim();
 }
 
-function normalizeText(text: string) {
-  return text.replace(/\s+/g, " ").trim();
+function signalLabel(score: number) {
+  const tone = scoreTone(score);
+  if (tone === "strong") return "Clear, repeatable behavioural evidence";
+  if (tone === "mid") return "Some evidence, but not yet consistent";
+  return "Limited or insufficient behavioural depth";
+}
+
+function salesLens(capability: string) {
+  switch (capability as Capability) {
+    case "Business Value Discovery & Co-Creation":
+      return "business value thinking and value co-creation";
+    case "Customer & Internal Influence / Collaboration":
+      return "customer influence and stakeholder alignment";
+    case "Executive Communication, Storytelling & Presence":
+      return "executive communication and commercial clarity";
+    case "Strategic Account Thinking":
+      return "strategic account judgement and commercial foresight";
+    case "AI Fluency & Human Trust Advantage":
+      return "AI judgement, trust, and customer-facing credibility";
+    case "Technical Credibility & Continuous Learning":
+      return "technical credibility linked to business impact";
+    default:
+      return "Sales Engineering capability";
+  }
 }
 
 function getParticipantEvidence(messages: InterviewMessageRecord[], capability: string) {
   return messages
     .filter((message) => message.role === "user" && message.capability === capability && message.transcript_text)
-    .map((message) => normalizeText(message.transcript_text || ""))
+    .map((message) => String(message.transcript_text ?? "").replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
 
-function pickEvidenceQuotes(messages: string[]) {
-  return messages.slice(0, 2).map((message) => {
-    const quote = message.length > 180 ? `${message.slice(0, 177)}...` : message;
-    return `“${quote}”`;
-  });
-}
-
-function buildScoreRationale(capability: string, score: number, evidence: string[]) {
+function buildSummary(capability: string, score: number, evidenceSummary: string, participantEvidence: string[]) {
   const tone = scoreTone(score);
-  const lead = evidence[0] ?? "The participant gave limited direct evidence in this area.";
+  const lens = salesLens(capability);
+  const exampleHint = participantEvidence[0]
+    ? participantEvidence[0].toLowerCase().includes("stakeholder")
+      ? "Examples pointed to real stakeholder handling."
+      : participantEvidence[0].toLowerCase().includes("business") || participantEvidence[0].toLowerCase().includes("value")
+        ? "Examples showed a commercial framing rather than purely technical explanation."
+        : "Interview examples showed some practical application in real situations."
+    : "Interview examples were limited.";
 
   if (tone === "strong") {
-    return `The score is high because the participant demonstrated clear behavioural evidence in ${capability}, including strong ownership, explicit judgement, and meaningful business or stakeholder impact. This was visible in statements such as ${pickEvidenceQuotes([lead])[0] ?? "the interview examples provided"}.`;
+    return `${signalLabel(score)} in ${lens}. ${firstSentence(evidenceSummary) || "The participant showed strong, commercially relevant behaviour."} ${exampleHint}`.trim();
   }
   if (tone === "mid") {
-    return `The score is mid-range because the participant demonstrated some real evidence in ${capability}, but the interview examples were not yet consistently strong enough to indicate a reliably high-level pattern. The interview showed useful signals, for example ${pickEvidenceQuotes([lead])[0] ?? "some relevant examples"}, while still leaving room for sharper depth, specificity, or downstream impact.`;
+    return `${signalLabel(score)} in ${lens}. ${firstSentence(evidenceSummary) || "The participant showed relevant capability, but not yet at a consistently strong level."} ${exampleHint}`.trim();
   }
-  return `The score is lower because the interview provided only limited or inconsistent evidence in ${capability}. The participant touched on relevant themes, but the examples did not yet show enough repeatable behavioural depth, strategic judgement, or measurable impact. This was especially noticeable in examples such as ${pickEvidenceQuotes([lead])[0] ?? "the responses given"}.`;
+  return `${signalLabel(score)} in ${lens}. ${firstSentence(evidenceSummary) || "The interview did not provide enough convincing evidence in this area."} ${exampleHint}`.trim();
 }
 
-function buildInterviewInsight(capability: string, score: number, evidence: string[]) {
+function normalizeBullets(items: string[], fallback: string[]) {
+  const trimmed = items.map((item) => item.replace(/\s+/g, " ").trim()).filter(Boolean);
+  return trimmed.length ? trimmed.slice(0, 3) : fallback;
+}
+
+function defaultStrengths(score: number, capability: string) {
   const tone = scoreTone(score);
-  const quote = pickEvidenceQuotes(evidence)[0];
-
   if (tone === "strong") {
-    return quote
-      ? `A strong interview signal in this area was ${quote}, which showed behaviour rather than generic language.`
-      : `The interview showed a strong, credible behavioural signal in this area.`;
+    switch (capability as Capability) {
+      case "Business Value Discovery & Co-Creation":
+        return ["Reframes technical needs into business problems.", "Connects discovery to value and decision quality."];
+      case "Customer & Internal Influence / Collaboration":
+        return ["Creates stakeholder movement across the account.", "Shows ownership rather than passive coordination."];
+      case "Executive Communication, Storytelling & Presence":
+        return ["Translates complexity into business-relevant language.", "Handles senior conversations with composure."];
+      case "Strategic Account Thinking":
+        return ["Looks beyond the immediate deal.", "Spots longer-term commercial risk and opportunity."];
+      case "AI Fluency & Human Trust Advantage":
+        return ["Uses AI with judgement rather than dependence.", "Balances speed with trust and credibility."];
+      case "Technical Credibility & Continuous Learning":
+        return ["Builds capability proactively.", "Applies learning in customer-facing situations."];
+    }
   }
-  if (tone === "mid") {
-    return quote
-      ? `The interview suggested capability here, but examples like ${quote} would benefit from more precision, stronger outcomes, or clearer strategic consequence.`
-      : `The interview suggested partial strength here, but the evidence was mixed.`;
-  }
-  return quote
-    ? `The interview touched this area, but examples like ${quote} did not yet provide enough high-quality evidence to support a stronger score.`
-    : `The interview did not produce enough robust evidence in this area to support a stronger score.`;
+  return ["Relevant behavioural signal was present." ];
 }
 
-function buildExecutiveNarrative(reportRows: InterviewReport["capabilityBreakdown"]) {
-  const strong = reportRows.filter((row) => scoreTone(row.score) === "strong").map((row) => row.capability);
-  const low = reportRows.filter((row) => scoreTone(row.score) === "low").map((row) => row.capability);
-  const mid = reportRows.filter((row) => scoreTone(row.score) === "mid").map((row) => row.capability);
+function defaultGaps(score: number, capability: string) {
+  const tone = scoreTone(score);
+  if (tone === "mid") {
+    return ["Make the behaviour more consistent under pressure.", "Use clearer business impact and decision consequences in examples."];
+  }
+  if (tone === "low") {
+    switch (capability as Capability) {
+      case "Business Value Discovery & Co-Creation":
+        return ["Move beyond technical description into commercial diagnosis.", "Show clearer evidence of value co-creation with the customer."];
+      case "Customer & Internal Influence / Collaboration":
+        return ["Show stronger stakeholder orchestration and conflict handling.", "Demonstrate more visible ownership of account movement."];
+      case "Executive Communication, Storytelling & Presence":
+        return ["Lead with executive relevance, not detail.", "Show stronger message control and business framing."];
+      case "Strategic Account Thinking":
+        return ["Show clearer long-term account judgement.", "Connect actions to expansion, risk, or sequencing impact."];
+      case "AI Fluency & Human Trust Advantage":
+        return ["Demonstrate clearer AI use tied to business outcomes.", "Show stronger validation discipline and judgement."];
+      case "Technical Credibility & Continuous Learning":
+        return ["Show more proactive learning behaviour.", "Connect technical growth more clearly to customer impact."];
+    }
+  }
+  return ["Behavioural depth could be stronger."];
+}
 
-  return [
-    strong.length ? `The interview indicates strongest evidence in ${strong.join(", ")}.` : null,
-    mid.length ? `There are mixed but promising signals in ${mid.join(", ")}, where the participant shows capability but not yet consistent high-level evidence.` : null,
-    low.length ? `The clearest development priorities are ${low.join(", ")}, where the interview examples were less compelling, less specific, or less strategically anchored.` : null,
-  ].filter(Boolean).join(" ");
+function defaultNextStep(score: number, capability: string) {
+  const tone = scoreTone(score);
+  if (tone === "strong") return `Use this capability more deliberately in complex, customer-facing situations where it can shape deal quality and strategic confidence.`;
+  if (tone === "mid") return `Focus on making this capability more repeatable in live opportunities, with clearer business impact and stronger behavioural specificity.`;
+  return `Prioritise this as a development area through targeted coaching, live observation, and deliberate practice in real Sales Engineering scenarios.`;
 }
 
 export function buildInterviewReport(scores: InterviewScoreRecord[], messages: InterviewMessageRecord[] = []): InterviewReport {
@@ -201,94 +186,48 @@ export function buildInterviewReport(scores: InterviewScoreRecord[], messages: I
 
   const sortedHigh = [...orderedScores].sort((a, b) => b.score - a.score);
   const sortedLow = [...orderedScores].sort((a, b) => a.score - b.score);
-  const behaviouralInsights = Array.from(new Set(orderedScores.flatMap((s) => toList(s.behavioural_patterns))));
 
   const capabilityBreakdown = orderedScores.map((item) => {
-    const tone = scoreTone(item.score);
     const participantEvidence = getParticipantEvidence(messages, item.capability);
-    const defaultStrengths = tone === "strong"
-      ? ["Consistently demonstrates a high-value Sales Engineering behaviour in this capability."]
-      : [];
-    const defaultGaps = tone === "mid"
-      ? ["Would benefit from more consistency, sharper examples, and stronger transfer into live strategic situations."]
-      : tone === "low"
-        ? ["Needs clearer, more repeatable evidence of this capability in live customer and deal situations."]
-        : [];
-    const defaultRecommendations = tone === "strong"
-      ? ["Leverage this strength more deliberately in strategic customer conversations, mentoring, and complex deal shaping."]
-      : tone === "mid"
-        ? ["Practice this capability more intentionally in live opportunities, with explicit reflection on what worked and what to improve."]
-        : ["Prioritize this area in manager coaching, role-play, and live deal observation with clear behavioural checkpoints."];
+    const strengths = normalizeBullets(toList(item.strengths), defaultStrengths(item.score, item.capability));
+    const gaps = normalizeBullets(toList(item.development_areas), defaultGaps(item.score, item.capability));
+    const nextStep = (toList(item.coaching_recommendations)[0] || defaultNextStep(item.score, item.capability)).replace(/\s+/g, " ").trim();
 
     return {
       capability: item.capability,
       score: item.score,
       level: capabilityLevel(item.score),
-      evidence: item.evidence_summary ?? "No evidence summary available.",
-      scoreRationale: buildScoreRationale(item.capability, item.score, participantEvidence),
-      strengths: toList(item.strengths).length ? toList(item.strengths) : defaultStrengths,
-      gaps: toList(item.development_areas).length ? toList(item.development_areas) : defaultGaps,
-      benchmark: benchmarkForCapability(item.capability),
-      impactStatement: impactStatement(item.capability, item.score),
-      behaviouralPatterns: toList(item.behavioural_patterns),
-      coachingRecommendations: toList(item.coaching_recommendations).length ? toList(item.coaching_recommendations) : defaultRecommendations,
-      interviewInsight: buildInterviewInsight(item.capability, item.score, participantEvidence),
-      participantEvidence: pickEvidenceQuotes(participantEvidence),
+      signalLabel: signalLabel(item.score),
+      summary: buildSummary(item.capability, item.score, item.evidence_summary ?? "", participantEvidence),
+      strengths,
+      gaps,
+      nextStep,
     };
   });
 
-  const headlineInsight = sortedHigh.length && sortedLow.length
-    ? `${sortedHigh[0].capability} is currently the clearest relative strength, while ${sortedLow[0].capability} is the highest-value development priority.`
-    : "Interview evidence is still being generated.";
-
-  const topStrengths = sortedHigh.slice(0, 3).map((item) => `${item.capability} (${capabilityLevel(item.score)})`);
-  const topDevelopmentPriorities = sortedLow.slice(0, 3).map((item) => `${item.capability} (${capabilityLevel(item.score)})`);
-
-  const strengthsProfile = sortedHigh.slice(0, 3).map((item) => {
-    const strengths = toList(item.strengths);
-    return strengths[0] ? `${item.capability}: ${strengths[0]}` : `${item.capability}: evidence suggests this is currently one of the individual’s more reliable strengths.`;
-  });
-
-  const evidenceHighlights = capabilityBreakdown
-    .filter((row) => row.participantEvidence.length)
+  const topStrengths = capabilityBreakdown
+    .filter((row) => scoreTone(row.score) === "strong")
     .slice(0, 3)
-    .map((row) => ({
-      capability: row.capability,
-      quote: row.participantEvidence[0],
-      whyItMatters: row.interviewInsight,
-    }));
+    .map((row) => `${row.capability} (${row.level})`);
 
-  const developmentAreas = sortedLow.flatMap((item) => toList(item.development_areas).slice(0, 1));
-  const coaching = sortedLow.flatMap((item) => toList(item.coaching_recommendations).slice(0, 1));
+  const topDevelopmentPriorities = capabilityBreakdown
+    .filter((row) => scoreTone(row.score) !== "strong")
+    .slice(0, 3)
+    .map((row) => `${row.capability} (${row.level})`);
+
+  const executiveSummary = [
+    sortedHigh[0] ? `Strongest evidence sits in ${sortedHigh[0].capability}, where the participant showed the clearest commercially relevant behavioural depth.` : null,
+    sortedLow[0] ? `Biggest gap sits in ${sortedLow[0].capability}, where the interview examples were least convincing or least repeatable.` : null,
+    topStrengths.length ? `Key strengths: ${topStrengths.join(", ")}.` : null,
+    topDevelopmentPriorities.length ? `Primary focus areas: ${topDevelopmentPriorities.join(", ")}.` : null,
+  ].filter((item): item is string => Boolean(item)).slice(0, 4);
 
   return {
     overallRating: overallRating(average),
     overallAverage: average,
-    headlineInsight,
+    executiveSummary,
     topStrengths,
     topDevelopmentPriorities,
-    behaviouralInsights: behaviouralInsights.length ? behaviouralInsights : ["No strong cross-capability behavioural patterns detected yet."],
-    strengthsProfile,
-    executiveNarrative: buildExecutiveNarrative(capabilityBreakdown),
-    evidenceHighlights,
-    developmentPlan: {
-      startDoing: coaching.slice(0, 3).length ? coaching.slice(0, 3) : ["Choose one priority capability and practise the target behaviour in live customer situations each week."],
-      stopDoing: developmentAreas.slice(0, 3).length ? developmentAreas.slice(0, 3).map((item) => `Stop defaulting to this pattern: ${item}`) : ["Stop relying on polished but non-specific examples when stronger behavioural evidence is needed."],
-      doMoreOf: sortedHigh.slice(0, 3).map((item) => `Do more of the behaviours already visible in ${item.capability}.`),
-    },
-    managerCoachingGuide: {
-      supportActions: sortedLow.slice(0, 3).map((item) => `Create deliberate coaching and live-practice opportunities in ${item.capability}.`),
-      coachingQuestions: [
-        "What did you do personally, and what changed because of it?",
-        "Where are you still relying on technical explanation instead of shaping the customer decision?",
-        "What capability do you need to build next to stay ahead in your role?",
-      ],
-      liveDealObservations: [
-        "Observe whether they lead with business value or technical detail.",
-        "Watch how they handle stakeholder tension and whether they create real movement.",
-        "Look for evidence of proactive learning being applied in live customer situations.",
-      ],
-    },
     capabilityBreakdown,
   };
 }
