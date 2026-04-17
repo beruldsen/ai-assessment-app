@@ -40,12 +40,13 @@ export async function GET(_: Request, ctx: Ctx) {
   }
 
   const scores = scoresRes.data ?? [];
+  const messages = messagesRes.data ?? [];
 
   return NextResponse.json({
     interview: interviewRes.data,
-    messages: messagesRes.data ?? [],
+    messages,
     scores,
-    report: scores.length ? buildInterviewReport(scores) : null,
+    report: scores.length ? buildInterviewReport(scores, messages) : null,
     telemetry: null,
   });
 }

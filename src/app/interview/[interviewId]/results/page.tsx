@@ -26,6 +26,8 @@ type InterviewReport = {
   topDevelopmentPriorities: string[];
   behaviouralInsights: string[];
   strengthsProfile: string[];
+  executiveNarrative: string;
+  evidenceHighlights: Array<{ capability: string; quote: string; whyItMatters: string }>;
   developmentPlan: {
     startDoing: string[];
     stopDoing: string[];
@@ -41,12 +43,15 @@ type InterviewReport = {
     score: number;
     level: string;
     evidence: string;
+    scoreRationale: string;
     strengths: string[];
     gaps: string[];
     benchmark: string;
     impactStatement: string;
     behaviouralPatterns: string[];
     coachingRecommendations: string[];
+    interviewInsight: string;
+    participantEvidence: string[];
   }>;
 };
 
@@ -83,7 +88,6 @@ export default function InterviewResultsPage() {
 
   const strongest = useMemo(() => [...scores].sort((a, b) => b.score - a.score)[0], [scores]);
   const weakest = useMemo(() => [...scores].sort((a, b) => a.score - b.score)[0], [scores]);
-  const averageTone = report ? scoreTone(report.overallAverage) : "mid";
 
   return (
     <main className="page grid report-page-shell report-print-page">
@@ -91,7 +95,7 @@ export default function InterviewResultsPage() {
         <div>
           <div className="eyebrow">AI Behavioural Interview Report</div>
           <h1 className="title" style={{ marginBottom: 6 }}>Sales Engineering Executive Assessment</h1>
-          <p className="subtitle" style={{ marginBottom: 10 }}>Professional capability review with client-ready narrative, visual scoring, and development priorities.</p>
+          <p className="subtitle" style={{ marginBottom: 10 }}>Evidence-grounded behavioural review with score rationale, interview insight, and client-ready presentation.</p>
           <div className="report-chip-row">
             <span className="badge">Interview ID: {interviewId}</span>
             <span className={`badge ${toneClass(report?.overallAverage ?? 3)}`}>Status: {status}</span>
@@ -113,7 +117,7 @@ export default function InterviewResultsPage() {
             <div className="report-sheet-header report-grid-2">
               <div>
                 <div className="report-sheet-title">Executive summary</div>
-                <div className="report-sheet-meta">A concise view of current capability profile, strengths, and highest-value development priorities.</div>
+                <div className="report-sheet-meta">A concise view of current capability profile, strongest behavioural signals, and highest-value development priorities.</div>
               </div>
               <div className={`report-summary-pill ${toneClass(report.overallAverage)}`}>
                 <div className="report-summary-pill-label">Overall rating</div>
@@ -145,13 +149,14 @@ export default function InterviewResultsPage() {
                 <div className="section-icon">✦</div>
                 <strong>Headline insight</strong>
                 <p className="meta" style={{ marginTop: 8 }}>{report.headlineInsight}</p>
+                <p className="meta" style={{ marginTop: 10 }}>{report.executiveNarrative}</p>
               </div>
               <div className="print-text-block report-legend-card">
                 <strong>Score guide</strong>
                 <div className="report-legend-list" style={{ marginTop: 10 }}>
-                  <div className="report-legend-entry"><span className="report-swatch score-strong" /> Green, strong capability signal, above 3.5</div>
-                  <div className="report-legend-entry"><span className="report-swatch score-mid" /> Amber, developing or mixed evidence, around 3</div>
-                  <div className="report-legend-entry"><span className="report-swatch score-low" /> Red, lower confidence area, below 3</div>
+                  <div className="report-legend-entry"><span className="report-swatch score-strong" /> Strong, above 3.5, clear behavioural evidence</div>
+                  <div className="report-legend-entry"><span className="report-swatch score-mid" /> Mixed, around 3, some evidence but not yet consistently high-level</div>
+                  <div className="report-legend-entry"><span className="report-swatch score-low" /> Lower, below 3, limited or inconsistent evidence</div>
                 </div>
               </div>
             </div>
@@ -161,34 +166,19 @@ export default function InterviewResultsPage() {
             <div className="report-grid-2 report-grid-2-balanced">
               <div>
                 <div className="report-sheet-title">Capability radar</div>
-                <div className="report-sheet-meta">Visual view of current Sales Engineering capability profile across all assessed areas.</div>
+                <div className="report-sheet-meta">Visual profile of current capability strength across the assessed areas.</div>
                 <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} />
               </div>
               <div>
-                <div className="report-sheet-title">Strengths and priorities</div>
-                <div className="report-section-block">
-                  <h3>Top strengths</h3>
-                  <div className="report-bullet-list">
-                    {report.topStrengths.map((item) => (
-                      <div key={item} className="report-bullet-item score-strong">✓ {item}</div>
-                    ))}
-                  </div>
-                </div>
-                <div className="report-section-block">
-                  <h3>Top development priorities</h3>
-                  <div className="report-bullet-list">
-                    {report.topDevelopmentPriorities.map((item) => (
-                      <div key={item} className="report-bullet-item score-low">→ {item}</div>
-                    ))}
-                  </div>
-                </div>
-                <div className="report-section-block">
-                  <h3>Behavioural insights</h3>
-                  <div className="report-bullet-list compact">
-                    {report.behaviouralInsights.map((item) => (
-                      <div key={item} className="report-bullet-item score-mid">• {item}</div>
-                    ))}
-                  </div>
+                <div className="report-sheet-title">Interview evidence highlights</div>
+                <div className="report-quote-list">
+                  {report.evidenceHighlights.map((item) => (
+                    <div key={item.capability} className="report-quote-card">
+                      <div className={`report-quote-tag ${toneClass(report.capabilityBreakdown.find((row) => row.capability === item.capability)?.score ?? 3)}`}>{item.capability}</div>
+                      <blockquote>{item.quote}</blockquote>
+                      <p>{item.whyItMatters}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -207,71 +197,47 @@ export default function InterviewResultsPage() {
                       </div>
                       <span className={`badge ${toneClass(item.score)}`}>{item.score}/5</span>
                     </div>
-                    <p className="report-summary-text">{item.evidence}</p>
+
+                    <div className="report-mini-block">
+                      <strong>Reason for score</strong>
+                      <span>{item.scoreRationale}</span>
+                    </div>
+
+                    {item.participantEvidence.length ? (
+                      <div className="report-mini-block">
+                        <strong>What the participant said</strong>
+                        <ul>{item.participantEvidence.map((entry) => <li key={entry}>{entry}</li>)}</ul>
+                      </div>
+                    ) : null}
+
+                    <div className="report-mini-block">
+                      <strong>Interview insight</strong>
+                      <span>{item.interviewInsight}</span>
+                    </div>
+
+                    <div className="report-mini-block"><strong>Assessment summary</strong><span>{item.evidence}</span></div>
                     <div className="report-mini-block"><strong>Benchmark</strong><span>{item.benchmark}</span></div>
                     <div className="report-mini-block"><strong>Client impact</strong><span>{item.impactStatement}</span></div>
+
                     <div className="report-mini-grid">
                       <div>
                         <strong>Strengths to leverage</strong>
-                        <ul>
-                          {item.strengths.map((entry) => <li key={entry}>{entry}</li>)}
-                        </ul>
+                        <ul>{item.strengths.map((entry) => <li key={entry}>{entry}</li>)}</ul>
                       </div>
                       <div>
                         <strong>Development focus</strong>
-                        <ul>
-                          {item.gaps.map((entry) => <li key={entry}>{entry}</li>)}
-                        </ul>
+                        <ul>{item.gaps.map((entry) => <li key={entry}>{entry}</li>)}</ul>
                       </div>
                     </div>
+
                     {item.coachingRecommendations.length ? (
                       <div className="report-mini-block">
                         <strong>Recommended next steps</strong>
-                        <ul>
-                          {item.coachingRecommendations.map((entry) => <li key={entry}>{entry}</li>)}
-                        </ul>
+                        <ul>{item.coachingRecommendations.map((entry) => <li key={entry}>{entry}</li>)}</ul>
                       </div>
                     ) : null}
                   </div>
                 ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="report-sheet report-sheet-premium">
-            <div className="report-grid-2">
-              <div className="report-section-block">
-                <h2>Strengths profile</h2>
-                <div className="report-bullet-list">
-                  {report.strengthsProfile.map((item) => (
-                    <div key={item} className="report-bullet-item score-strong">✓ {item}</div>
-                  ))}
-                </div>
-              </div>
-              <div className="report-section-block">
-                <h2>Manager coaching guide</h2>
-                <div className="report-mini-block"><strong>Support actions</strong><ul>{report.managerCoachingGuide.supportActions.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                <div className="report-mini-block"><strong>Coaching questions</strong><ul>{report.managerCoachingGuide.coachingQuestions.map((item) => <li key={item}>{item}</li>)}</ul></div>
-              </div>
-            </div>
-          </section>
-
-          <section className="report-sheet report-sheet-premium">
-            <div className="report-sheet-section">
-              <h2>Practical development plan</h2>
-              <div className="report-grid-3">
-                <div className="print-text-block score-strong">
-                  <strong>Start doing</strong>
-                  <ul>{report.developmentPlan.startDoing.map((item) => <li key={item}>{item}</li>)}</ul>
-                </div>
-                <div className="print-text-block score-low">
-                  <strong>Stop doing</strong>
-                  <ul>{report.developmentPlan.stopDoing.map((item) => <li key={item}>{item}</li>)}</ul>
-                </div>
-                <div className="print-text-block score-mid">
-                  <strong>Do more of</strong>
-                  <ul>{report.developmentPlan.doMoreOf.map((item) => <li key={item}>{item}</li>)}</ul>
-                </div>
               </div>
             </div>
           </section>

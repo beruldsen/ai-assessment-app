@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import InterviewRadarChart from "@/components/InterviewRadarChart";
 import { toneClass } from "@/lib/interviewReportUi";
@@ -26,27 +26,26 @@ type InterviewReport = {
   topDevelopmentPriorities: string[];
   behaviouralInsights: string[];
   strengthsProfile: string[];
+  executiveNarrative: string;
+  evidenceHighlights: Array<{ capability: string; quote: string; whyItMatters: string }>;
   developmentPlan: {
     startDoing: string[];
     stopDoing: string[];
     doMoreOf: string[];
-  };
-  managerCoachingGuide: {
-    supportActions: string[];
-    coachingQuestions: string[];
-    liveDealObservations: string[];
   };
   capabilityBreakdown: Array<{
     capability: string;
     score: number;
     level: string;
     evidence: string;
+    scoreRationale: string;
     strengths: string[];
     gaps: string[];
     benchmark: string;
     impactStatement: string;
-    behaviouralPatterns: string[];
     coachingRecommendations: string[];
+    interviewInsight: string;
+    participantEvidence: string[];
   }>;
 };
 
@@ -75,9 +74,6 @@ export default function InterviewPrintPage() {
     void load();
   }, [load]);
 
-  const strongest = useMemo(() => [...scores].sort((a, b) => b.score - a.score)[0], [scores]);
-  const weakest = useMemo(() => [...scores].sort((a, b) => a.score - b.score)[0], [scores]);
-
   return (
     <main className="page grid report-print-page">
       <div className="card surface-hero" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -103,26 +99,12 @@ export default function InterviewPrintPage() {
               <div>
                 <div className="report-sheet-title">AI Behavioural Interview Executive Assessment</div>
                 <div className="report-sheet-meta">Interview ID: {interviewId}</div>
+                <p className="meta" style={{ marginTop: 10 }}>{report.executiveNarrative}</p>
               </div>
               <div className={`report-summary-pill ${toneClass(report.overallAverage)}`}>
                 <div className="report-summary-pill-label">Overall rating</div>
                 <div className="report-summary-pill-value">{report.overallRating}</div>
                 <div className="report-summary-pill-sub">Average {report.overallAverage}/5</div>
-              </div>
-            </div>
-
-            <div className="report-score-grid">
-              <div className={`report-kpi-card ${strongest ? toneClass(strongest.score) : "score-strong"}`}>
-                <div className="report-kpi-label">Strongest capability</div>
-                <div className="report-kpi-value report-kpi-small">{strongest?.capability ?? "-"}</div>
-              </div>
-              <div className={`report-kpi-card ${weakest ? toneClass(weakest.score) : "score-low"}`}>
-                <div className="report-kpi-label">Priority capability</div>
-                <div className="report-kpi-value report-kpi-small">{weakest?.capability ?? "-"}</div>
-              </div>
-              <div className="report-kpi-card score-mid">
-                <div className="report-kpi-label">Headline insight</div>
-                <div className="report-kpi-value report-kpi-small">{report.headlineInsight}</div>
               </div>
             </div>
           </section>
@@ -134,19 +116,15 @@ export default function InterviewPrintPage() {
                 <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} printMode />
               </div>
               <div>
-                <h2>Score legend</h2>
-                <div className="report-bullet-list">
-                  <div className="report-bullet-item score-strong">Green, strong score, above 3.5</div>
-                  <div className="report-bullet-item score-mid">Amber, mixed or developing score, around 3</div>
-                  <div className="report-bullet-item score-low">Red, lower score, below 3</div>
-                </div>
-                <h2 style={{ marginTop: 18 }}>Top strengths</h2>
-                <div className="report-bullet-list">
-                  {report.topStrengths.map((item) => <div key={item} className="report-bullet-item score-strong">✓ {item}</div>)}
-                </div>
-                <h2 style={{ marginTop: 18 }}>Top development priorities</h2>
-                <div className="report-bullet-list">
-                  {report.topDevelopmentPriorities.map((item) => <div key={item} className="report-bullet-item score-low">→ {item}</div>)}
+                <h2>Interview evidence highlights</h2>
+                <div className="report-quote-list">
+                  {report.evidenceHighlights.map((item) => (
+                    <div key={item.capability} className="report-quote-card">
+                      <div className={`report-quote-tag ${toneClass(report.capabilityBreakdown.find((row) => row.capability === item.capability)?.score ?? 3)}`}>{item.capability}</div>
+                      <blockquote>{item.quote}</blockquote>
+                      <p>{item.whyItMatters}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -164,9 +142,11 @@ export default function InterviewPrintPage() {
                     </div>
                     <span className={`badge ${toneClass(item.score)}`}>{item.score}/5</span>
                   </div>
-                  <p className="report-summary-text">{item.evidence}</p>
+                  <div className="report-mini-block"><strong>Reason for score</strong><span>{item.scoreRationale}</span></div>
+                  {item.participantEvidence.length ? <div className="report-mini-block"><strong>What the participant said</strong><ul>{item.participantEvidence.map((entry) => <li key={entry}>{entry}</li>)}</ul></div> : null}
+                  <div className="report-mini-block"><strong>Interview insight</strong><span>{item.interviewInsight}</span></div>
+                  <div className="report-mini-block"><strong>Assessment summary</strong><span>{item.evidence}</span></div>
                   <div className="report-mini-block"><strong>Benchmark</strong><span>{item.benchmark}</span></div>
-                  <div className="report-mini-block"><strong>Impact</strong><span>{item.impactStatement}</span></div>
                   <div className="report-mini-grid">
                     <div>
                       <strong>Strengths</strong>
@@ -180,23 +160,6 @@ export default function InterviewPrintPage() {
                   <div className="report-mini-block"><strong>Recommended next steps</strong><ul>{item.coachingRecommendations.map((entry) => <li key={entry}>{entry}</li>)}</ul></div>
                 </div>
               ))}
-            </div>
-          </section>
-
-          <section className="report-sheet report-sheet-premium">
-            <div className="report-grid-3">
-              <div className="print-text-block score-strong">
-                <strong>Start doing</strong>
-                <ul>{report.developmentPlan.startDoing.map((item) => <li key={item}>{item}</li>)}</ul>
-              </div>
-              <div className="print-text-block score-low">
-                <strong>Stop doing</strong>
-                <ul>{report.developmentPlan.stopDoing.map((item) => <li key={item}>{item}</li>)}</ul>
-              </div>
-              <div className="print-text-block score-mid">
-                <strong>Do more of</strong>
-                <ul>{report.developmentPlan.doMoreOf.map((item) => <li key={item}>{item}</li>)}</ul>
-              </div>
             </div>
           </section>
         </div>
