@@ -198,7 +198,7 @@ export async function scoreInterview(args: { interviewId: string }) {
     "- development_areas",
     "- behavioural_patterns",
     "- coaching_recommendations",
-    "Evidence summary should explain what the candidate actually demonstrated and what evidence was missing.",
+    "Evidence summary should explain what the participant actually demonstrated and what evidence was missing.",
     "Strengths and development areas should be practical and evidence-based.",
     "Behavioural patterns should use short labels only when clearly supported by the transcript.",
     "Coaching recommendations should be specific, practical, and directly tied to observed gaps.",

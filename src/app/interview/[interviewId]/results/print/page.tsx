@@ -89,18 +89,21 @@ export default function InterviewPrintPage() {
               </div>
             </div>
 
-            <div className="report-bullet-list">
-              {report.executiveSummary.map((item) => (
-                <div key={item} className="report-bullet-item">• {item}</div>
-              ))}
-            </div>
-          </section>
-
-          <section className="report-sheet report-sheet-premium">
             <div className="report-grid-2 report-grid-2-balanced">
               <div>
-                <h2>Capability radar</h2>
-                <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} printMode />
+                <div className="report-mini-block" style={{ marginTop: 0 }}>
+                  <strong>Executive summary</strong>
+                  <div className="report-bullet-list" style={{ marginTop: 8 }}>
+                    {report.executiveSummary.map((item) => (
+                      <div key={item} className="report-bullet-item">• {item}</div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="report-mini-block" style={{ marginTop: 16 }}>
+                  <strong>Capability radar</strong>
+                  <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} printMode />
+                </div>
               </div>
               <div>
                 <h2>Key strengths</h2>
