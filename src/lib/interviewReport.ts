@@ -68,8 +68,8 @@ function firstSentence(text: string | null | undefined) {
 function signalLabel(score: number) {
   const tone = scoreTone(score);
   if (tone === "strong") return "Clear, repeatable behavioural evidence";
-  if (tone === "mid") return "Some evidence, but not yet consistent";
-  return "Limited or insufficient behavioural depth";
+  if (tone === "mid") return "Relevant evidence, but not yet fully consistent";
+  return "Limited behavioural evidence";
 }
 
 function salesLens(capability: string) {
@@ -120,7 +120,7 @@ function buildSummary(capability: string, score: number, evidenceSummary: string
 
 function normalizeBullets(items: string[], fallback: string[]) {
   const trimmed = items.map((item) => item.replace(/\s+/g, " ").trim()).filter(Boolean);
-  return trimmed.length ? trimmed.slice(0, 3) : fallback;
+  return trimmed.length ? trimmed.slice(0, 2) : fallback;
 }
 
 function defaultStrengths(score: number, capability: string) {
@@ -141,7 +141,7 @@ function defaultStrengths(score: number, capability: string) {
         return ["Builds capability proactively.", "Applies learning in customer-facing situations."];
     }
   }
-  return ["Relevant behavioural signal was present." ];
+  return [];
 }
 
 function defaultGaps(score: number, capability: string) {
@@ -165,7 +165,7 @@ function defaultGaps(score: number, capability: string) {
         return ["Show more proactive learning behaviour.", "Connect technical growth more clearly to customer impact."];
     }
   }
-  return ["Behavioural depth could be stronger."];
+  return [];
 }
 
 function defaultNextStep(score: number, capability: string) {
@@ -212,14 +212,15 @@ export function buildInterviewReport(scores: InterviewScoreRecord[], messages: I
 
   const topDevelopmentPriorities = capabilityBreakdown
     .filter((row) => scoreTone(row.score) !== "strong")
+    .sort((a, b) => a.score - b.score)
     .slice(0, 3)
     .map((row) => `${row.capability} (${row.level})`);
 
   const executiveSummary = [
     sortedHigh[0] ? `Strongest evidence sits in ${sortedHigh[0].capability}, where the participant showed the clearest commercially relevant behavioural depth.` : null,
-    sortedLow[0] ? `Biggest gap sits in ${sortedLow[0].capability}, where the interview examples were least convincing or least repeatable.` : null,
+    sortedLow[0] ? `The highest-priority gap sits in ${sortedLow[0].capability}, where the interview evidence was least convincing or least repeatable.` : null,
     topStrengths.length ? `Key strengths: ${topStrengths.join(", ")}.` : null,
-    topDevelopmentPriorities.length ? `Primary focus areas: ${topDevelopmentPriorities.join(", ")}.` : null,
+    topDevelopmentPriorities.length ? `Primary development priorities: ${topDevelopmentPriorities.join(", ")}.` : null,
   ].filter((item): item is string => Boolean(item)).slice(0, 4);
 
   return {

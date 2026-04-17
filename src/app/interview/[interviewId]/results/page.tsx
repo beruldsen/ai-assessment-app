@@ -69,9 +69,8 @@ export default function InterviewResultsPage() {
     <main className="page grid report-page-shell report-print-page">
       <div className="card surface-hero report-hero">
         <div>
-          <div className="eyebrow">AI Behavioural Interview Report</div>
-          <h1 className="title" style={{ marginBottom: 6 }}>Sales Engineering Capability Assessment</h1>
-          <p className="subtitle" style={{ marginBottom: 10 }}>Short, sharp, sales-focused view of demonstrated strengths, mixed signals, and development gaps.</p>
+          <div className="eyebrow">Future Sales Engineer Assessment Centre</div>
+          <h1 className="title" style={{ marginBottom: 6 }}>AI Behavioural Based Interview Report</h1>
           <div className="report-chip-row">
             <span className="badge">Interview ID: {interviewId}</span>
             <span className={`badge ${toneClass(report?.overallAverage ?? 3)}`}>Status: {status}</span>
@@ -93,7 +92,7 @@ export default function InterviewResultsPage() {
             <div className="report-sheet-header report-grid-2">
               <div>
                 <div className="report-sheet-title">Executive summary</div>
-                <div className="report-sheet-meta">Designed to be read quickly by a sales leader or client stakeholder.</div>
+                <div className="report-sheet-meta">A concise behavioural view of current Sales Engineering strengths, mixed signals, and development priorities.</div>
               </div>
               <div className={`report-summary-pill ${toneClass(report.overallAverage)}`}>
                 <div className="report-summary-pill-label">Overall rating</div>
@@ -114,7 +113,7 @@ export default function InterviewResultsPage() {
                 <div className="report-kpi-sub">{strongest ? `${strongest.score}/5` : ""}</div>
               </div>
               <div className={`report-kpi-card ${weakest ? toneClass(weakest.score) : "score-low"}`}>
-                <div className="report-kpi-label">Biggest gap</div>
+                <div className="report-kpi-label">Highest priority gap</div>
                 <div className="report-kpi-value report-kpi-small">{weakest?.capability ?? "-"}</div>
                 <div className="report-kpi-sub">{weakest ? `${weakest.score}/5` : ""}</div>
               </div>
