@@ -25,6 +25,7 @@ export async function POST(_: Request, ctx: Ctx) {
       type: "score_interview",
       status: "pending",
       payload: { interviewId },
+      error: null,
     })
     .select("id")
     .single();
