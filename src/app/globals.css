@@ -145,6 +145,9 @@ body {
   padding: 14px 16px;
   border: 1px solid transparent;
 }
+.report-summary-pill-compact {
+  min-width: 0;
+}
 .report-summary-pill-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; }
 .report-summary-pill-value { font-size: 28px; font-weight: 800; margin-top: 6px; }
 .report-summary-pill-sub { margin-top: 4px; font-size: 13px; }
@@ -282,6 +285,49 @@ body {
 .report-mini-block li,
 .report-mini-grid li,
 .print-text-block li { font-size: 14px; line-height: 1.5; }
+.report-radar-results-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.72fr);
+  gap: 18px;
+  align-items: start;
+}
+.report-radar-panel,
+.report-results-panel {
+  min-height: 100%;
+}
+.report-results-panel {
+  align-content: start;
+}
+.report-results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.report-results-table td {
+  padding: 7px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #dbe4f0;
+}
+.report-results-table td:last-child {
+  white-space: nowrap;
+  text-align: right;
+  font-weight: 700;
+}
+.report-results-table.compact td:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 10px;
+}
+.report-score-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 9px;
+}
 .report-mini-block span { color: #0f172a; }
 .report-mini-block ul,
 .report-mini-grid ul,
@@ -331,7 +377,8 @@ body {
   .report-grid-2-balanced,
   .report-grid-3,
   .report-score-grid,
-  .report-mini-grid { grid-template-columns: 1fr; }
+  .report-mini-grid,
+  .report-radar-results-row { grid-template-columns: 1fr; }
   .report-sheet { padding: 18px; }
   .page { padding: 16px; }
   .report-quote-tag { font-size: 10px; }
@@ -385,8 +432,23 @@ body {
   .report-capability-card,
   .report-quote-card { break-inside: avoid; page-break-inside: avoid; }
 
-  .report-radar { max-width: 380px; }
-  .radar-label { font-size: 9px; }
+  .report-radar-results-row {
+    grid-template-columns: minmax(0, 1fr) minmax(170px, 0.62fr);
+    gap: 12px;
+  }
+  .report-radar { max-width: 250px; }
+  .radar-label { font-size: 7px; }
+  .report-results-table {
+    font-size: 10px;
+  }
+  .report-results-table td {
+    padding: 4px 0;
+  }
+  .report-score-dot {
+    width: 7px;
+    height: 7px;
+    flex-basis: 7px;
+  }
   .report-capability-grid { grid-template-columns: 1fr 1fr; }
 
   .report-capability-card:hover,

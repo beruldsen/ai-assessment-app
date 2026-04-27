@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import InterviewRadarChart from "@/components/InterviewRadarChart";
-import { toneClass } from "@/lib/interviewReportUi";
+import { capabilityShortLabel, toneClass } from "@/lib/interviewReportUi";
 
 type InterviewScore = {
   id: string;
@@ -89,28 +89,52 @@ export default function InterviewPrintPage() {
               </div>
             </div>
 
-            <div className="report-grid-2 report-grid-2-balanced">
-              <div>
-                <div className="report-mini-block" style={{ marginTop: 0 }}>
-                  <strong>Executive summary</strong>
-                  <div className="report-bullet-list" style={{ marginTop: 8 }}>
-                    {report.executiveSummary.map((item) => (
-                      <div key={item} className="report-bullet-item">• {item}</div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="report-mini-block" style={{ marginTop: 16 }}>
-                  <strong>Capability radar</strong>
-                  <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} printMode />
-                </div>
+            <div className="report-mini-block" style={{ marginTop: 0 }}>
+              <strong>Executive summary</strong>
+              <div className="report-bullet-list" style={{ marginTop: 8 }}>
+                {report.executiveSummary.map((item) => (
+                  <div key={item} className="report-bullet-item">• {item}</div>
+                ))}
               </div>
+            </div>
+
+            <div className="report-radar-results-row" style={{ marginTop: 16 }}>
+              <div className="report-mini-block report-radar-panel" style={{ marginTop: 0 }}>
+                <strong>Capability radar</strong>
+                <InterviewRadarChart scores={scores.map((score) => ({ capability: score.capability, score: score.score }))} printMode />
+              </div>
+              <div className="report-mini-block report-results-panel" style={{ marginTop: 0 }}>
+                <strong>Assessment snapshot</strong>
+                <div className={`report-summary-pill report-summary-pill-compact ${toneClass(report.overallAverage)}`} style={{ marginTop: 10 }}>
+                  <div className="report-summary-pill-label">Overall rating</div>
+                  <div className="report-summary-pill-value">{report.overallRating}</div>
+                  <div className="report-summary-pill-sub">Average {report.overallAverage}/5</div>
+                </div>
+                <table className="report-results-table compact" style={{ marginTop: 12 }}>
+                  <tbody>
+                    {report.capabilityBreakdown.map((item) => (
+                      <tr key={item.capability}>
+                        <td>
+                          <span className={`report-score-dot ${toneClass(item.score)}`} />
+                          {capabilityShortLabel(item.capability)}
+                        </td>
+                        <td>{item.score}/5</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="report-grid-2" style={{ marginTop: 18 }}>
               <div>
                 <h2>Key strengths</h2>
                 <div className="report-bullet-list">
                   {report.topStrengths.map((item) => <div key={item} className="report-bullet-item score-strong">✓ {item}</div>)}
                 </div>
-                <h2 style={{ marginTop: 18 }}>Key development priorities</h2>
+              </div>
+              <div>
+                <h2>Key development priorities</h2>
                 <div className="report-bullet-list">
                   {report.topDevelopmentPriorities.map((item) => <div key={item} className="report-bullet-item score-low">→ {item}</div>)}
                 </div>

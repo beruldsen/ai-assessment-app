@@ -58,8 +58,16 @@ function joinShort(items: string[], max = 2) {
   return items.slice(0, max).join(" ");
 }
 
+function replaceCandidateWithParticipant(text: string) {
+  return text.replace(/\bcandidate\b/gi, (match) => {
+    if (match === match.toUpperCase()) return "PARTICIPANT";
+    if (match[0] === match[0].toUpperCase()) return "Participant";
+    return "participant";
+  });
+}
+
 function firstSentence(text: string | null | undefined) {
-  const clean = String(text ?? "").replace(/\s+/g, " ").trim();
+  const clean = replaceCandidateWithParticipant(String(text ?? "").replace(/\s+/g, " ").trim());
   if (!clean) return "";
   const match = clean.match(/.*?[.!?](\s|$)/);
   return (match ? match[0] : clean).trim();
@@ -119,7 +127,9 @@ function buildSummary(capability: string, score: number, evidenceSummary: string
 }
 
 function normalizeBullets(items: string[], fallback: string[]) {
-  const trimmed = items.map((item) => item.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const trimmed = items
+    .map((item) => replaceCandidateWithParticipant(item.replace(/\s+/g, " ").trim()))
+    .filter(Boolean);
   return trimmed.length ? trimmed.slice(0, 2) : fallback;
 }
 
@@ -191,7 +201,7 @@ export function buildInterviewReport(scores: InterviewScoreRecord[], messages: I
     const participantEvidence = getParticipantEvidence(messages, item.capability);
     const strengths = normalizeBullets(toList(item.strengths), defaultStrengths(item.score, item.capability));
     const gaps = normalizeBullets(toList(item.development_areas), defaultGaps(item.score, item.capability));
-    const nextStep = (toList(item.coaching_recommendations)[0] || defaultNextStep(item.score, item.capability)).replace(/\s+/g, " ").trim();
+    const nextStep = replaceCandidateWithParticipant((toList(item.coaching_recommendations)[0] || defaultNextStep(item.score, item.capability)).replace(/\s+/g, " ").trim());
 
     return {
       capability: item.capability,

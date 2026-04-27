@@ -64,3 +64,22 @@ export function labelAnchor(angle: number) {
 export function orderedCapabilityRows<T extends { capability: string }>(rows: T[]) {
   return CAPABILITIES.map((capability) => rows.find((row) => row.capability === capability)).filter((row): row is T => Boolean(row));
 }
+
+export function capabilityShortLabel(capability: string) {
+  switch (capability) {
+    case "Business Value Discovery & Co-Creation":
+      return "Business Value Discovery";
+    case "Customer & Internal Influence / Collaboration":
+      return "Stakeholder Influence";
+    case "Executive Communication, Storytelling & Presence":
+      return "Executive Communication";
+    case "Strategic Account Thinking":
+      return "Strategic Account Thinking";
+    case "AI Fluency & Human Trust Advantage":
+      return "AI Fluency & Trust";
+    case "Technical Credibility & Continuous Learning":
+      return "Technical Credibility";
+    default:
+      return capability;
+  }
+}
