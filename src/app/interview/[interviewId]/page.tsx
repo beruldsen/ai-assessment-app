@@ -413,6 +413,28 @@ export default function InterviewPage() {
 
       <section className="card grid interview-sticky-controls">
         {errorMessage ? <div className="meta" style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 12, fontSize: 13 }}>Error: {errorMessage}</div> : null}
+        {showCompleteConfirm ? (
+          <div className="interview-inline-callout">
+            <strong>Complete interview?</strong>
+            <p className="meta" style={{ margin: "6px 0 10px 0" }}>Use this only when you believe the interview is finished. Scoring will begin after completion.</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="button" onClick={() => { setShowCompleteConfirm(false); void completeInterview(); }} disabled={completionBusy}>{completionBusy ? "Completing..." : "Yes, complete interview"}</button>
+              <button className="button ghost" onClick={() => setShowCompleteConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : null}
+        {completedInterview ? (
+          <div className="interview-inline-callout interview-inline-callout-success">
+            <strong>Interview completed</strong>
+            <p className="meta" style={{ margin: "6px 0 10px 0" }}>Your report is being prepared. Open the report below, or refresh if scoring is still in progress.</p>
+            {jobId ? <p className="meta" style={{ margin: "0 0 10px 0" }}>Scoring job: {jobId}</p> : null}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="button" onClick={() => void loadInterview()}>Refresh status</button>
+              <Link href={`/interview/${interviewId}/results`} className="button" style={{ textDecoration: "none" }} onClick={() => stopActiveAudio()}>View report</Link>
+              <Link href={`/interview/${interviewId}/results/print`} className="button ghost" style={{ textDecoration: "none" }} onClick={() => stopActiveAudio()}>Open print / PDF view</Link>
+            </div>
+          </div>
+        ) : null}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="button" style={{ boxShadow: readyToRecord ? "0 0 0 4px rgba(79,70,229,0.18), 0 0 24px rgba(79,70,229,0.28)" : undefined, transform: readyToRecord ? "translateY(-1px)" : undefined, background: readyToRecord ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : undefined, borderColor: readyToRecord ? "#4f46e5" : undefined }} onClick={() => void startRecording()} disabled={recordingState === "recording" || recordingState === "processing"}>{recordingState === "recording" ? "Recording..." : "Start recording"}</button>
           <button className="button" style={{ background: recordingState === "recording" ? "#dc2626" : undefined, borderColor: recordingState === "recording" ? "#dc2626" : undefined }} onClick={stopRecording} disabled={recordingState !== "recording"}>Stop and submit</button>
@@ -452,35 +474,10 @@ export default function InterviewPage() {
           ))}
         </div>
 
-        {completedInterview ? (
-          <div className="card" style={{ borderColor: "#cbd5e1", background: "#eff6ff" }}>
-            <strong>Interview completed</strong>
-            <p className="meta" style={{ margin: "6px 0 10px 0" }}>Your report is being prepared. You can open the report now and refresh if scoring is still in progress.</p>
-            {jobId ? <p className="meta" style={{ margin: "0 0 10px 0" }}>Scoring job: {jobId}</p> : null}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="button" onClick={() => void loadInterview()}>Refresh status</button>
-              <Link href={`/interview/${interviewId}/results`} className="button" style={{ textDecoration: "none" }} onClick={() => stopActiveAudio()}>View report</Link>
-              <Link href={`/interview/${interviewId}/results/print`} className="button ghost" style={{ textDecoration: "none" }} onClick={() => stopActiveAudio()}>Open print / PDF view</Link>
-            </div>
-          </div>
-        ) : null}
-
         {pausePromptVisible ? (
           <div className="card" style={{ borderColor: "#cbd5e1", background: "#fff7ed" }}>
             <strong>Still answering?</strong>
             <p className="meta" style={{ margin: "6px 0 0 0" }}>If you need a moment, that’s fine. If you’ve finished, press Stop and submit when you’re ready.</p>
-          </div>
-        ) : null}
-
-        {showCompleteConfirm ? (
-          <div className="card" style={{ borderColor: "#cbd5e1", background: "#f8fafc" }}>
-            <strong>Complete interview?</strong>
-            <p className="meta" style={{ margin: "6px 0 10px 0" }}>Use this only when you believe the interview is finished. Scoring will begin after completion.</p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="button" onClick={() => { setShowCompleteConfirm(false); void completeInterview(); }} disabled={completionBusy}>{completionBusy ? "Completing..." : "Yes, complete interview"}</button>
-              <button className="button ghost" onClick={() => setShowCompleteConfirm(false)}>Cancel</button>
-            </div>
-            <p className="meta" style={{ margin: "10px 0 0 0" }}>If you are still mid-interview, cancel here and continue with the next response.</p>
           </div>
         ) : null}
 
