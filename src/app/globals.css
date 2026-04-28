@@ -231,6 +231,15 @@ body {
   line-height: 1.5;
   color: #475569;
 }
+.spoken-sentence {
+  transition: background-color 120ms ease, color 120ms ease;
+  border-radius: 6px;
+  padding: 0 2px;
+}
+.spoken-sentence-active {
+  background: rgba(79, 70, 229, 0.14);
+  color: #312e81;
+}
 .report-quote-tag {
   display: inline-flex;
   align-items: center;

@@ -21,6 +21,22 @@ type InterviewState = {
   current_capability: string | null;
 };
 
+function splitIntoSentences(text: string) {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function estimateSentenceDurations(sentences: string[]) {
+  const wordsPerMinute = 155;
+  const minMs = 1400;
+  return sentences.map((sentence) => {
+    const wordCount = sentence.split(/\s+/).filter(Boolean).length;
+    return Math.max(minMs, Math.round((wordCount / wordsPerMinute) * 60_000));
+  });
+}
+
 export default function InterviewPage() {
   const params = useParams<{ interviewId: string }>();
   const interviewId = params?.interviewId;
@@ -49,6 +65,11 @@ export default function InterviewPage() {
   const recordingTimerRef = useRef<number | null>(null);
   const recordingStateRef = useRef(recordingState);
   const chatWrapRef = useRef<HTMLDivElement | null>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const activeAudioUrlRef = useRef<string | null>(null);
+  const highlightTimeoutsRef = useRef<number[]>([]);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [speakingSentenceIndex, setSpeakingSentenceIndex] = useState<number | null>(null);
 
   const loadInterview = useCallback(async () => {
     if (!interviewId) return;
@@ -93,33 +114,69 @@ export default function InterviewPage() {
     return kind === "question" || (!kind && message.role === "assistant");
   }
 
-  const playAssistantAudio = useCallback(async (text: string) => {
-    if (!interviewId || !text.trim()) return;
+  const stopActiveAudio = useCallback(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.currentTime = 0;
+      activeAudioRef.current.onended = null;
+      activeAudioRef.current.onerror = null;
+      activeAudioRef.current = null;
+    }
+    if (activeAudioUrlRef.current) {
+      URL.revokeObjectURL(activeAudioUrlRef.current);
+      activeAudioUrlRef.current = null;
+    }
+    highlightTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    highlightTimeoutsRef.current = [];
+    setSpeakingMessageId(null);
+    setSpeakingSentenceIndex(null);
+    isPlayingAssistantRef.current = false;
+  }, []);
+
+  const playAssistantAudio = useCallback(async (message: Message) => {
+    if (!interviewId || !message.transcript_text.trim()) return;
+    stopActiveAudio();
     try {
       const res = await fetch(`/api/interviews/${interviewId}/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text }),
+        body: JSON.stringify({ input: message.transcript_text }),
       });
       if (!res.ok) return;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      activeAudioRef.current = audio;
+      activeAudioUrlRef.current = url;
+
+      const sentences = splitIntoSentences(message.transcript_text);
+      const durations = estimateSentenceDurations(sentences);
+      let elapsed = 0;
+      setSpeakingMessageId(message.id);
+      setSpeakingSentenceIndex(0);
+      durations.forEach((duration, index) => {
+        const timeoutId = window.setTimeout(() => {
+          setSpeakingSentenceIndex(index);
+        }, elapsed);
+        highlightTimeoutsRef.current.push(timeoutId);
+        elapsed += duration;
+      });
+
       await audio.play().catch(() => undefined);
       await new Promise<void>((resolve) => {
         audio.onended = () => {
-          URL.revokeObjectURL(url);
+          stopActiveAudio();
           resolve();
         };
         audio.onerror = () => {
-          URL.revokeObjectURL(url);
+          stopActiveAudio();
           resolve();
         };
       });
     } catch {
-      // ignore and fall back silently
+      stopActiveAudio();
     }
-  }, [interviewId]);
+  }, [interviewId, stopActiveAudio]);
 
   useEffect(() => {
     const unseenAssistantMessages = messages.filter(
@@ -136,7 +193,7 @@ export default function InterviewPage() {
       for (const message of unseenAssistantMessages) {
         playedAssistantIdsRef.current.add(message.id);
         if (message.transcript_text) {
-          await playAssistantAudio(message.transcript_text);
+          await playAssistantAudio(message);
         }
         if (shouldHighlightRecord(message) && recordingStateRef.current === "idle") {
           setReadyToRecord(true);
@@ -305,9 +362,22 @@ export default function InterviewPage() {
     chatWrap.scrollTo({ top: chatWrap.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    return () => {
+      stopActiveAudio();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, [stopActiveAudio]);
+
+  useEffect(() => {
+    if (showCompleteConfirm || completedInterview || recordingState === "processing") {
+      stopActiveAudio();
+    }
+  }, [showCompleteConfirm, completedInterview, recordingState, stopActiveAudio]);
+
   function replayLastQuestion() {
     if (lastAssistant?.transcript_text) {
-      void playAssistantAudio(lastAssistant.transcript_text);
+      void playAssistantAudio(lastAssistant);
     }
   }
 
@@ -368,7 +438,16 @@ export default function InterviewPage() {
                 {message.role === "user" ? "Participant" : message.role === "assistant" ? "Interviewer" : "System"}
                 {message.capability ? ` · ${message.capability}` : ""}
               </div>
-              {message.transcript_text}
+              {message.role === "assistant" && speakingMessageId === message.id
+                ? splitIntoSentences(message.transcript_text).map((sentence, index) => (
+                    <span
+                      key={`${message.id}-${index}`}
+                      className={index === speakingSentenceIndex ? "spoken-sentence spoken-sentence-active" : "spoken-sentence"}
+                    >
+                      {sentence}{" "}
+                    </span>
+                  ))
+                : message.transcript_text}
             </div>
           ))}
         </div>
@@ -380,8 +459,8 @@ export default function InterviewPage() {
             {jobId ? <p className="meta" style={{ margin: "0 0 10px 0" }}>Scoring job: {jobId}</p> : null}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="button" onClick={() => void loadInterview()}>Refresh status</button>
-              <Link href={`/interview/${interviewId}/results`} className="button" style={{ textDecoration: "none" }}>View report</Link>
-              <Link href={`/interview/${interviewId}/results/print`} className="button ghost" style={{ textDecoration: "none" }}>Open print / PDF view</Link>
+              <Link href={`/interview/${interviewId}/results`} className="button" style={{ textDecoration: "none" }} onClick={() => stopActiveAudio()}>View report</Link>
+              <Link href={`/interview/${interviewId}/results/print`} className="button ghost" style={{ textDecoration: "none" }} onClick={() => stopActiveAudio()}>Open print / PDF view</Link>
             </div>
           </div>
         ) : null}
