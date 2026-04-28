@@ -313,9 +313,12 @@ export default function InterviewPage() {
 
   return (
     <main className="page grid">
-      <div>
-        <h1 className="title">Sales Engineering Capability Assessment - AI Behavioural Based Interview</h1>
-        <p className="subtitle">Interview ID: {interviewId}</p>
+      <div className="card surface-hero interview-hero">
+        <div>
+          <div className="eyebrow">Live assessment</div>
+          <h1 className="title">Sales Engineering Capability Assessment - AI Behavioural Based Interview</h1>
+          <p className="subtitle">Interview ID: {interviewId}</p>
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="badge">Status: {status}</span>
           {currentCapability ? <span className="badge">Current area: {currentCapability}</span> : null}
@@ -326,14 +329,14 @@ export default function InterviewPage() {
       <section className="card grid">
         <strong>Current capability</strong>
         <p className="meta">{currentCapability ?? "Loading..."}</p>
-        <div className="meta">Mode: Push-to-talk voice with text fallback</div>
+        <div className="meta">Mode: Guided voice interview with text fallback</div>
         <div className="meta">Recording state: {recordingState}</div>
         {currentCapabilityIndex >= 0 ? (
           <>
             <div style={{ height: 8, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
               <div style={{ width: `${((currentCapabilityIndex + 1) / Math.max(capabilitySequence.length, 1)) * 100}%`, height: "100%", background: "linear-gradient(90deg, #4f46e5, #7c3aed)" }} />
             </div>
-            <div className="meta">You are working through one capability area at a time. The interview will guide you forward automatically.</div>
+            <div className="meta">You are moving through one capability area at a time. The interview will guide progression automatically based on your responses.</div>
           </>
         ) : null}
       </section>
@@ -341,7 +344,7 @@ export default function InterviewPage() {
       <section className="card grid">
         {errorMessage ? <div className="meta" style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 12, fontSize: 13 }}>Error: {errorMessage}</div> : null}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="button" style={{ boxShadow: readyToRecord ? "0 0 0 4px rgba(79,70,229,0.18), 0 0 24px rgba(79,70,229,0.28)" : undefined, transform: readyToRecord ? "translateY(-1px)" : undefined, background: readyToRecord ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : undefined, borderColor: readyToRecord ? "#4f46e5" : undefined }} onClick={() => void startRecording()} disabled={recordingState === "recording" || recordingState === "processing"}>Start recording</button>
+          <button className="button" style={{ boxShadow: readyToRecord ? "0 0 0 4px rgba(79,70,229,0.18), 0 0 24px rgba(79,70,229,0.28)" : undefined, transform: readyToRecord ? "translateY(-1px)" : undefined, background: readyToRecord ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : undefined, borderColor: readyToRecord ? "#4f46e5" : undefined }} onClick={() => void startRecording()} disabled={recordingState === "recording" || recordingState === "processing"}>{recordingState === "recording" ? "Recording..." : "Start recording"}</button>
           <button className="button" style={{ background: recordingState === "recording" ? "#dc2626" : undefined, borderColor: recordingState === "recording" ? "#dc2626" : undefined }} onClick={stopRecording} disabled={recordingState !== "recording"}>Stop and submit</button>
           <button className="button ghost" onClick={replayLastQuestion} disabled={recordingState === "processing"}>Replay question</button>
           <button className="button ghost" onClick={() => setInputMode((m) => (m === "voice" ? "text" : "voice"))}>Use {inputMode === "voice" ? "text fallback" : "voice mode"}</button>
@@ -402,7 +405,7 @@ export default function InterviewPage() {
           </div>
         ) : null}
 
-        <div className="meta">Tip: the conversation will keep moving downward as new messages appear. If you ever miss the latest question, use Replay question.</div>
+        <div className="meta">Tip: the conversation will keep moving downward as new messages appear. If you miss the latest question, use Replay question before answering.</div>
 
         {inputMode === "text" ? (
           <div style={{ display: "flex", gap: 8 }}>

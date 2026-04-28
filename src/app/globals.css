@@ -90,6 +90,15 @@ body {
 
 .report-page-shell { gap: 16px; }
 .report-stack-lg { display: grid; gap: 18px; }
+.interview-hero {
+  display: grid;
+  gap: 14px;
+}
+.interview-hero-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .report-hero {
   display: flex;
   justify-content: space-between;

@@ -82,6 +82,7 @@ export default function InterviewResultsPage() {
           <div className="report-chip-row">
             <span className="badge">Interview ID: {interviewId}</span>
             <span className={`badge ${toneClass(report?.overallAverage ?? 3)}`}>Status: {status}</span>
+            {report ? <span className={`badge ${toneClass(report.overallAverage)}`}>Overall signal: {toneLabel(report.overallAverage)}</span> : null}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -92,7 +93,7 @@ export default function InterviewResultsPage() {
 
       {scores.length === 0 || !report ? (
         <section className="card grid">
-          <p className="meta">Scoring in progress or no report available yet.</p>
+          <p className="meta">Scoring is still in progress or the report is not ready yet.</p>
           {errorMessage ? <p className="meta" style={{ color: "#991b1b" }}>Error: {errorMessage}</p> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="button" onClick={() => void load()}>Refresh report</button>
@@ -171,6 +172,7 @@ export default function InterviewResultsPage() {
           <section className="report-sheet report-sheet-premium">
             <div className="report-sheet-section">
               <h2>Capability breakdown</h2>
+              <div className="report-sheet-meta" style={{ marginBottom: 12 }}>Detailed view of behavioural evidence, development gaps, and practical next steps for each assessed capability.</div>
               <div className="report-capability-grid">
                 {report.capabilityBreakdown.map((item) => (
                   <div key={item.capability} className={`report-capability-card ${toneClass(item.score)}`}>

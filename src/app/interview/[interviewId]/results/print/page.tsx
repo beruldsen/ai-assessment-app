@@ -80,7 +80,7 @@ export default function InterviewPrintPage() {
 
       {scores.length === 0 || !report ? (
         <section className="card grid">
-          <p className="meta">Scoring in progress or no report available yet.</p>
+          <p className="meta">Scoring is still in progress or the report is not ready yet.</p>
           {errorMessage ? <p className="meta" style={{ color: "#991b1b" }}>Error: {errorMessage}</p> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="button" onClick={() => void load()}>Refresh report</button>
@@ -157,6 +157,7 @@ export default function InterviewPrintPage() {
 
           <section className="report-sheet report-sheet-premium">
             <h2>Capability breakdown</h2>
+            <div className="report-sheet-meta" style={{ marginBottom: 12 }}>Detailed view of behavioural evidence, development gaps, and practical next steps for each assessed capability.</div>
             <div className="report-capability-grid">
               {report.capabilityBreakdown.map((item) => (
                 <div key={item.capability} className={`report-capability-card ${toneClass(item.score)}`}>
