@@ -85,6 +85,13 @@ function hasOutcomeEvidence(text: string) {
     "adoption",
     "pipeline",
     "time to value",
+    "agreed",
+    "aligned",
+    "approved",
+    "bought in",
+    "stayed engaged",
+    "moved ahead",
+    "evaluate",
   ].some((token) => lc.includes(token));
 }
 
@@ -107,6 +114,14 @@ function hasOwnershipEvidence(text: string) {
     "i pulled together",
     "i translated",
     "i realized",
+    "i built",
+    "i explained",
+    "i simplified",
+    "i adapted",
+    "i shifted",
+    "i positioned",
+    "i framed",
+    "i watched",
   ].some((token) => lc.includes(token));
 }
 
