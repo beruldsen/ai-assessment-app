@@ -28,6 +28,8 @@ type Metadata = {
   strategicSignals?: string[];
   participantResistance?: boolean;
   participantResistanceReason?: string;
+  reusedCrossCapabilityEvidence?: boolean;
+  missingDimensions?: string[];
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
@@ -210,25 +212,57 @@ function capabilityReadyToAdvance(capability: Capability, userAnswers: string[])
   );
 }
 
+function missingEvidenceDimensions(capability: Capability, text: string, probeIndex = 0) {
+  const missing: string[] = [];
+
+  if (capability === "Strategic Account Thinking") {
+    const signals = strategicSignals(text);
+    if (!signals.includes("hypothesis")) missing.push("account hypothesis");
+    if (!signals.includes("bigger_picture")) missing.push("bigger-picture account view");
+    if (!signals.includes("risk_anticipation")) missing.push("risk anticipation");
+  }
+
+  if (!hasOwnershipEvidence(text)) missing.push("personal ownership");
+  if (!hasOutcomeEvidence(text)) missing.push("business outcome");
+  if (!hasDecisionLogicEvidence(text)) missing.push("decision-making rationale");
+  if (!hasStakeholderEvidence(text)) missing.push("stakeholder influence");
+  if (!hasReflectionEvidence(text) && probeIndex >= 2) missing.push("reflection or learning");
+
+  return Array.from(new Set(missing));
+}
+
+function buildProbeForMissingDimension(capability: Capability, dimension: string) {
+  switch (dimension) {
+    case "account hypothesis":
+      return "What was your working hypothesis about the account, and what evidence led you to that view?";
+    case "bigger-picture account view":
+      return "What bigger picture account dynamic did you see that others were missing?";
+    case "risk anticipation":
+      return "What longer-term risk, blocker, or consequence were you trying to get ahead of?";
+    case "personal ownership":
+      return "What did you personally do versus what the team did?";
+    case "business outcome":
+      return "What changed in the business, stakeholder decision, or opportunity because of your actions?";
+    case "decision-making rationale":
+      return "Why did you choose that approach rather than another option?";
+    case "stakeholder influence":
+      return capability === "Strategic Account Thinking"
+        ? "Who did you need to influence, and how did that affect the account direction?"
+        : "Who did you need to influence, and how did they respond?";
+    case "reflection or learning":
+      return "What did you learn, or what would you do differently next time?";
+    default:
+      return "What was the measurable result?";
+  }
+}
+
 function nextProbe(capability: Capability, probeIndex: number, text?: string) {
   const rubric = INTERVIEW_RUBRIC[capability];
   const participantAnswer = text ?? "";
 
   if (participantAnswer) {
-    if (capability === "Strategic Account Thinking") {
-      const signals = strategicSignals(participantAnswer);
-      if (!signals.includes("hypothesis")) return "What was your working hypothesis about the account, and what evidence led you to that view?";
-      if (!signals.includes("bigger_picture")) return "What bigger picture account dynamic did you see that others were missing?";
-      if (!signals.includes("risk_anticipation")) return "What longer-term risk, blocker, or consequence were you trying to get ahead of?";
-      if (!hasStakeholderEvidence(participantAnswer)) return "Who did you need to influence, and how did that affect the account direction?";
-      if (!hasDecisionLogicEvidence(participantAnswer)) return "Why did you believe changing tack was the right strategic move at that point?";
-      if (!hasOutcomeEvidence(participantAnswer)) return "What changed in the account, relationship, or next phase because you took that view early?";
-    }
-    if (!hasOwnershipEvidence(participantAnswer)) return "What did you personally do versus what the team did?";
-    if (!hasOutcomeEvidence(participantAnswer)) return "What changed in the business, stakeholder decision, or opportunity because of your actions?";
-    if (!hasDecisionLogicEvidence(participantAnswer)) return "Why did you choose that approach rather than another option?";
-    if (!hasStakeholderEvidence(participantAnswer)) return "Who did you need to influence, and how did they respond?";
-    if (!hasReflectionEvidence(participantAnswer) && probeIndex >= 2) return "What did you learn, or what would you do differently next time?";
+    const missing = missingEvidenceDimensions(capability, participantAnswer, probeIndex);
+    if (missing.length) return buildProbeForMissingDimension(capability, missing[0] ?? "");
   }
 
   if (probeIndex >= rubric.probes.length && rubric.hardToFakeProbes.length) {
@@ -317,25 +351,43 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const rubric = INTERVIEW_RUBRIC[capability];
 
-    const { data: capabilityHistory, error: historyErr } = await supabaseServer
-      .from("interview_messages")
-      .select("role, transcript_text, capability, metadata, created_at")
-      .eq("interview_id", interviewId)
-      .eq("capability", capability)
-      .order("created_at", { ascending: true });
+    const [capabilityHistoryRes, fullHistoryRes] = await Promise.all([
+      supabaseServer
+        .from("interview_messages")
+        .select("role, transcript_text, capability, metadata, created_at")
+        .eq("interview_id", interviewId)
+        .eq("capability", capability)
+        .order("created_at", { ascending: true }),
+      supabaseServer
+        .from("interview_messages")
+        .select("role, transcript_text, capability, metadata, created_at")
+        .eq("interview_id", interviewId)
+        .order("created_at", { ascending: true }),
+    ]);
 
-    if (historyErr) {
-      return NextResponse.json({ error: historyErr.message }, { status: 500 });
+    const capabilityHistory = capabilityHistoryRes.data ?? [];
+    const fullHistory = fullHistoryRes.data ?? [];
+
+    if (capabilityHistoryRes.error) {
+      return NextResponse.json({ error: capabilityHistoryRes.error.message }, { status: 500 });
+    }
+    if (fullHistoryRes.error) {
+      return NextResponse.json({ error: fullHistoryRes.error.message }, { status: 500 });
     }
 
     const fit = assessCapabilityFit(capability, content);
     const resistance = detectParticipantResistance(content);
-    const allAssistantMessages = (capabilityHistory ?? []).filter((m) => m.role === "assistant");
+    const allAssistantMessages = capabilityHistory.filter((m) => m.role === "assistant");
     const offTargetRedirects = allAssistantMessages.filter(
       (m) => (m.metadata as Metadata | null)?.fitReason === "redirected-to-current-capability"
     ).length;
-    const userMessages = (capabilityHistory ?? []).filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
-    const priorResistanceCount = (capabilityHistory ?? []).filter((m) => m.role === "user" && Boolean((m.metadata as Metadata | null)?.participantResistance)).length;
+    const userMessages = capabilityHistory.filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
+    const priorResistanceCount = capabilityHistory.filter((m) => m.role === "user" && Boolean((m.metadata as Metadata | null)?.participantResistance)).length;
+    const priorAcceptedMessages = fullHistory.filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
+    const crossCapabilityContext = priorAcceptedMessages
+      .filter((m) => m.capability && m.capability !== capability)
+      .map((m) => m.transcript_text)
+      .join("\n");
     const probeIndex = userMessages.length;
 
     const { error: insertUserErr } = await supabaseServer.from("interview_messages").insert({
@@ -361,10 +413,16 @@ export async function POST(req: Request, ctx: Ctx) {
     let assistant = "";
     let responseCapability = capability;
     const answerEvidenceScore = evidenceScore(capability, content);
+    const combinedCapabilityText = [...userMessages.map((m) => m.transcript_text), content].join("\n");
+    const combinedCrossCapabilityText = [crossCapabilityContext, combinedCapabilityText].filter(Boolean).join("\n");
+    const missingDimensions = missingEvidenceDimensions(capability, combinedCrossCapabilityText, probeIndex + 1);
+    const crossCapabilityEvidenceScore = crossCapabilityContext ? evidenceScore(capability, combinedCrossCapabilityText) : 0;
     let responseMetadata: Metadata = {
       outputMode: body?.outputMode ?? "voice",
-      evidenceScore: answerEvidenceScore,
+      evidenceScore: Math.max(answerEvidenceScore, crossCapabilityEvidenceScore),
       strategicSignals: capability === "Strategic Account Thinking" ? strategicSignals(content) : undefined,
+      reusedCrossCapabilityEvidence: crossCapabilityEvidenceScore > answerEvidenceScore,
+      missingDimensions,
     };
 
     if (resistance.resistant) {
@@ -425,16 +483,19 @@ export async function POST(req: Request, ctx: Ctx) {
       }
     } else {
       const updatedUserAnswers = [...userMessages.map((m) => m.transcript_text), content];
-      const readyToAdvance = capabilityReadyToAdvance(capability, updatedUserAnswers);
+      const readyToAdvance = capabilityReadyToAdvance(capability, updatedUserAnswers) || crossCapabilityEvidenceScore >= MIN_EVIDENCE_SCORE_TO_ADVANCE;
       const shouldForceAdvance = updatedUserAnswers.length >= MAX_USER_TURNS_PER_CAPABILITY;
 
       if (readyToAdvance || shouldForceAdvance) {
         const next = nextCapability(interview, capability);
         if (next) {
           responseCapability = next;
+          const transitionPrefix = crossCapabilityEvidenceScore >= MIN_EVIDENCE_SCORE_TO_ADVANCE
+            ? "I can use the example you already shared, so we do not need to repeat it. "
+            : "";
           assistant = shouldForceAdvance && !readyToAdvance
-            ? `Thank you, that gives me enough context for this area. Let’s move on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
-            : `${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
+            ? `${transitionPrefix}Thank you, that gives me enough context for this area. Let’s move on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
+            : `${transitionPrefix}${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
           responseMetadata = {
             ...responseMetadata,
             completedCapability: true,
@@ -462,7 +523,16 @@ export async function POST(req: Request, ctx: Ctx) {
           }
         }
       } else {
-        assistant = nextProbe(capability, probeIndex, content);
+        const missingDimension = missingDimensions[0] ?? null;
+        const missingDimensionProbe = missingDimension ? buildProbeForMissingDimension(capability, missingDimension) : null;
+        assistant = missingDimensionProbe ?? nextProbe(capability, probeIndex, content);
+        if (resistance.resistant && missingDimensionProbe) {
+          assistant = `I heard that. I just need one more detail on ${missingDimension}: ${missingDimensionProbe.charAt(0).toLowerCase()}${missingDimensionProbe.slice(1)}`;
+        } else if (missingDimensionProbe) {
+          assistant = probeIndex >= 1
+            ? `I’d like one more detail to understand the ${missingDimension} here. ${missingDimensionProbe}`
+            : missingDimensionProbe;
+        }
         responseMetadata = {
           ...responseMetadata,
           probeIndex: probeIndex + 1,
@@ -470,12 +540,6 @@ export async function POST(req: Request, ctx: Ctx) {
         };
 
         if (process.env.OPENAI_API_KEY) {
-          const { data: fullHistory } = await supabaseServer
-            .from("interview_messages")
-            .select("role, transcript_text")
-            .eq("interview_id", interviewId)
-            .order("created_at", { ascending: true });
-
           const system = [
             "You are a senior Sales Engineering leader conducting a structured behavioural interview.",
             "Your style should feel like a credible SE leader, not a generic competency bot.",
@@ -486,6 +550,7 @@ export async function POST(req: Request, ctx: Ctx) {
             `Weak evidence: ${rubric.weakEvidence.join(", ")}`,
             `Core question: ${rubric.coreQuestion}`,
             `Current recommended probe: ${assistant}`,
+            `Missing dimensions still to assess: ${missingDimensions.join(", ") || "none"}`,
             `Evidence ladder for this capability: ${rubric.evidenceLadder.join(" | ")}`,
             `Hard-to-fake probes for this capability: ${rubric.hardToFakeProbes.join(" | ")}`,
             `Scoring anchors: ${Object.entries(rubric.scoreAnchors).map(([k, v]) => `${k}=${v}`).join(" | ")}`,
@@ -501,7 +566,10 @@ export async function POST(req: Request, ctx: Ctx) {
             "- Prefer questions that expose whether they led with business value or jumped too quickly to solution or feature detail.",
             "Rules:",
             "- Stay strictly on the current capability, but recognize that strong answers may overlap with adjacent capabilities.",
-            "- If an answer partly fits the current capability, do not reject it outright. Briefly acknowledge the relevant part and ask for the missing evidence needed for this capability.",
+            "- Reuse evidence from earlier answers when it is relevant to the current capability. Do not force the participant to retell the same story unless a specific missing dimension still needs evidence.",
+            "- If an answer partly fits the current capability, do not reject it outright. Briefly acknowledge the relevant part and ask only for the missing evidence needed for this capability.",
+            "- If the participant signals they already answered, do not restate the original question. Ask only for the missing dimension, or move on if enough evidence already exists.",
+            "- When a follow-up is needed after prior evidence exists, briefly justify it in one short sentence.",
             "- Ask one concise probing question only.",
             "- Use natural spoken language, not competency-framework jargon.",
             "- Avoid stacked multi-part questions unless tightly connected.",
