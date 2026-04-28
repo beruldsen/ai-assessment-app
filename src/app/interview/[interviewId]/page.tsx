@@ -411,7 +411,7 @@ export default function InterviewPage() {
         ) : null}
       </section>
 
-      <section className="card grid">
+      <section className="card grid interview-sticky-controls">
         {errorMessage ? <div className="meta" style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 12, fontSize: 13 }}>Error: {errorMessage}</div> : null}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="button" style={{ boxShadow: readyToRecord ? "0 0 0 4px rgba(79,70,229,0.18), 0 0 24px rgba(79,70,229,0.28)" : undefined, transform: readyToRecord ? "translateY(-1px)" : undefined, background: readyToRecord ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : undefined, borderColor: readyToRecord ? "#4f46e5" : undefined }} onClick={() => void startRecording()} disabled={recordingState === "recording" || recordingState === "processing"}>{recordingState === "recording" ? "Recording..." : "Start recording"}</button>

@@ -99,6 +99,14 @@ body {
   gap: 8px;
   flex-wrap: wrap;
 }
+.interview-sticky-controls {
+  position: sticky;
+  top: 16px;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(79, 70, 229, 0.14);
+}
 .report-hero {
   display: flex;
   justify-content: space-between;
@@ -391,6 +399,9 @@ body {
 .report-print-safe { display: grid; gap: 16px; }
 
 @media (max-width: 960px) {
+  .interview-sticky-controls {
+    top: 10px;
+  }
   .report-grid-2,
   .report-grid-2-balanced,
   .report-grid-3,
