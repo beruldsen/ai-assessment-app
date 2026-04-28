@@ -31,6 +31,14 @@ type InterviewReport = {
   }>;
 };
 
+type InterviewJob = {
+  id: string;
+  status: "pending" | "running" | "completed" | "failed";
+  last_error?: string | null;
+  error?: string | null;
+  attempts?: number | null;
+};
+
 export default function InterviewResultsPage() {
   const params = useParams<{ interviewId: string }>();
   const interviewId = params?.interviewId;
@@ -39,6 +47,7 @@ export default function InterviewResultsPage() {
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [status, setStatus] = useState("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [job, setJob] = useState<InterviewJob | null>(null);
 
   const load = useCallback(async () => {
     if (!interviewId) return;
@@ -50,10 +59,25 @@ export default function InterviewResultsPage() {
         setErrorMessage(json.error ?? "Failed to load the report.");
         return;
       }
-      setScores(json.scores ?? []);
-      setReport(json.report ?? null);
-      setStatus((json.scores ?? []).length ? "completed" : "pending");
-      setErrorMessage(null);
+      const nextScores = json.scores ?? [];
+      const nextReport = json.report ?? null;
+      const nextJob = json.job ?? null;
+      setScores(nextScores);
+      setReport(nextReport);
+      setJob(nextJob);
+      if (nextScores.length) {
+        setStatus("completed");
+        setErrorMessage(null);
+      } else if (nextJob?.status === "failed") {
+        setStatus("failed");
+        setErrorMessage(nextJob.last_error ?? nextJob.error ?? "Report generation failed.");
+      } else if (nextJob?.status === "running") {
+        setStatus("running");
+        setErrorMessage(null);
+      } else {
+        setStatus("pending");
+        setErrorMessage(null);
+      }
     } catch {
       setStatus("error: failed");
       setErrorMessage("We could not load the report. Please refresh and try again.");
@@ -65,7 +89,7 @@ export default function InterviewResultsPage() {
   }, [load]);
 
   useEffect(() => {
-    if (status !== "pending") return;
+    if (!["pending", "running"].includes(status)) return;
     const t = setInterval(() => void load(), 2500);
     return () => clearInterval(t);
   }, [status, load]);
@@ -82,6 +106,7 @@ export default function InterviewResultsPage() {
           <div className="report-chip-row">
             <span className="badge">Interview ID: {interviewId}</span>
             <span className={`badge ${toneClass(report?.overallAverage ?? 3)}`}>Status: {status}</span>
+            {job ? <span className="badge">Job: {job.status}</span> : null}
             {report ? <span className={`badge ${toneClass(report.overallAverage)}`}>Overall signal: {toneLabel(report.overallAverage)}</span> : null}
           </div>
         </div>
@@ -93,7 +118,8 @@ export default function InterviewResultsPage() {
 
       {scores.length === 0 || !report ? (
         <section className="card grid">
-          <p className="meta">Scoring is still in progress or the report is not ready yet.</p>
+          <p className="meta">{status === "failed" ? "Report generation failed." : "Scoring is still in progress or the report is not ready yet."}</p>
+          {job?.id ? <p className="meta">Scoring job: {job.id}{job.attempts ? `, attempts: ${job.attempts}` : ""}</p> : null}
           {errorMessage ? <p className="meta" style={{ color: "#991b1b" }}>Error: {errorMessage}</p> : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="button" onClick={() => void load()}>Refresh report</button>

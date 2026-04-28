@@ -26,12 +26,15 @@ type Metadata = {
   redirectCount?: number;
   evidenceScore?: number;
   strategicSignals?: string[];
+  participantResistance?: boolean;
+  participantResistanceReason?: string;
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
 const MAX_USER_TURNS_PER_CAPABILITY = 5;
 const MIN_EVIDENCE_SCORE_TO_ADVANCE = 5;
 const MAX_OFF_TARGET_REDIRECTS = 3;
+const MAX_PARTICIPANT_RESISTANCE_BEFORE_ADVANCE = 2;
 
 const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
   "Business Value Discovery & Co-Creation": ["business outcome", "value", "metrics", "adoption", "forecast", "ramp", "problem", "discovery"],
@@ -235,6 +238,29 @@ function nextProbe(capability: Capability, probeIndex: number, text?: string) {
   return rubric.probes[Math.min(probeIndex, rubric.probes.length - 1)] ?? "What was the measurable result?";
 }
 
+function detectParticipantResistance(text: string) {
+  const lc = text.toLowerCase();
+  const phrases = [
+    "i already told you",
+    "i already did",
+    "i already answered",
+    "i said that already",
+    "we covered that",
+    "already covered",
+    "no thank you",
+    "i don't care",
+    "move on",
+    "next question",
+    "stop asking",
+  ];
+
+  const matched = phrases.find((phrase) => lc.includes(phrase));
+  return {
+    resistant: Boolean(matched),
+    reason: matched ?? null,
+  };
+}
+
 function detectBestMatchingCapability(text: string): Capability | null {
   const lc = text.toLowerCase();
   const scored = (Object.entries(CAPABILITY_KEYWORDS) as [Capability, string[]][])
@@ -303,11 +329,13 @@ export async function POST(req: Request, ctx: Ctx) {
     }
 
     const fit = assessCapabilityFit(capability, content);
+    const resistance = detectParticipantResistance(content);
     const allAssistantMessages = (capabilityHistory ?? []).filter((m) => m.role === "assistant");
     const offTargetRedirects = allAssistantMessages.filter(
       (m) => (m.metadata as Metadata | null)?.fitReason === "redirected-to-current-capability"
     ).length;
     const userMessages = (capabilityHistory ?? []).filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
+    const priorResistanceCount = (capabilityHistory ?? []).filter((m) => m.role === "user" && Boolean((m.metadata as Metadata | null)?.participantResistance)).length;
     const probeIndex = userMessages.length;
 
     const { error: insertUserErr } = await supabaseServer.from("interview_messages").insert({
@@ -321,6 +349,8 @@ export async function POST(req: Request, ctx: Ctx) {
         fitAccepted: fit.fitAccepted,
         fitReason: fit.fitAccepted ? "matched-current-capability" : "off-target-answer",
         detectedCapability: fit.detectedCapability,
+        participantResistance: resistance.resistant,
+        participantResistanceReason: resistance.reason ?? undefined,
       } satisfies Metadata,
     });
 
@@ -337,7 +367,34 @@ export async function POST(req: Request, ctx: Ctx) {
       strategicSignals: capability === "Strategic Account Thinking" ? strategicSignals(content) : undefined,
     };
 
-    if (!fit.fitAccepted) {
+    if (resistance.resistant) {
+      const next = nextCapability(interview, capability);
+      const resistanceCount = priorResistanceCount + 1;
+
+      if (next && resistanceCount >= MAX_PARTICIPANT_RESISTANCE_BEFORE_ADVANCE) {
+        responseCapability = next;
+        assistant = `Understood. We have enough to move on from this area. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
+        responseMetadata = {
+          ...responseMetadata,
+          completedCapability: true,
+          transitionTo: next,
+          probeIndex: 0,
+          fitAccepted: true,
+          forcedAdvance: true,
+          participantResistance: true,
+          participantResistanceReason: resistance.reason ?? undefined,
+        };
+      } else {
+        assistant = "Understood. We can move on when needed, but before we do, give me one concrete example focused just on what you personally did, how you adapted for the audience, and what changed as a result.";
+        responseMetadata = {
+          ...responseMetadata,
+          probeIndex: probeIndex + 1,
+          fitAccepted: true,
+          participantResistance: true,
+          participantResistanceReason: resistance.reason ?? undefined,
+        };
+      }
+    } else if (!fit.fitAccepted) {
       const next = nextCapability(interview, capability);
       const shouldForceAdvance = offTargetRedirects + 1 >= MAX_OFF_TARGET_REDIRECTS;
 
