@@ -273,7 +273,7 @@ export default function InterviewPage() {
   return (
     <main className="page grid">
       <div>
-        <h1 className="title">Voice Behavioural Interview</h1>
+        <h1 className="title">Sales Engineering Capability Assessment</h1>
         <p className="subtitle">Interview ID: {interviewId}</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="badge">Status: {status}</span>
