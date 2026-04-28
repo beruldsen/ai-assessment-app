@@ -76,7 +76,7 @@ export const INTERVIEW_PROMPTS: Record<Capability, string[]> = {
 };
 
 export function interviewWelcomeIntro() {
-  return "Hi, and thanks for taking the time to be part of this interview today. This is a professional and developmental conversation designed to understand how you approach real situations in your work. It works best if you answer using one specific customer situation at a time, explain what you personally did, why you took that approach, who was involved, and what changed as a result. Many strong examples will naturally touch more than one capability area, and if that happens I may steer you toward the angle I need to assess right now. If you need a moment to think before answering, that’s absolutely fine. Great, let’s get started.";
+  return "Hi, and thanks for taking the time to join this Sales Engineering interview today. This is a professional, developmental conversation focused on how you approach real situations in your work. Please use one specific customer example at a time, and talk through what you did, why you took that approach, who was involved, and what changed as a result. If you need a moment to think before answering, that’s completely fine. Great, let’s get started.";
 }
 
 export function capabilityIntro(capability: Capability) {
