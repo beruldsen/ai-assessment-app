@@ -40,6 +40,7 @@ export default function InterviewPage() {
   const [completedInterview, setCompletedInterview] = useState(false);
   const [completionBusy, setCompletionBusy] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -51,15 +52,22 @@ export default function InterviewPage() {
 
   const loadInterview = useCallback(async () => {
     if (!interviewId) return;
-    const res = await fetch(`/api/interviews/${interviewId}`, { cache: "no-store" });
-    const json = await res.json();
-    if (!res.ok) {
-      setStatus(`error: ${json.error ?? "failed to load"}`);
-      return;
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) {
+        setStatus(`error: ${json.error ?? "failed to load"}`);
+        setErrorMessage(json.error ?? "Failed to load interview state.");
+        return;
+      }
+      setInterview(json.interview ?? null);
+      setMessages(json.messages ?? []);
+      setStatus(json.interview?.status ?? "running");
+      setErrorMessage(null);
+    } catch {
+      setStatus("error: failed to load");
+      setErrorMessage("We could not load the latest interview state. Please refresh and try again.");
     }
-    setInterview(json.interview ?? null);
-    setMessages(json.messages ?? []);
-    setStatus(json.interview?.status ?? "running");
   }, [interviewId]);
 
   useEffect(() => {
@@ -140,18 +148,25 @@ export default function InterviewPage() {
 
   async function sendTextMessage(value: string, mode: "voice" | "text") {
     if (!interviewId || !value.trim()) return;
-    const res = await fetch(`/api/interviews/${interviewId}/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: value.trim(), inputMode: mode, outputMode: "tts" }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setStatus(`error: ${json.error ?? "failed to send"}`);
-      return;
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: value.trim(), inputMode: mode, outputMode: "tts" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setStatus(`error: ${json.error ?? "failed to send"}`);
+        setErrorMessage(json.error ?? "We could not save that response. Please try again.");
+        return;
+      }
+      setContent("");
+      setErrorMessage(null);
+      await loadInterview();
+    } catch {
+      setStatus("error: failed to send");
+      setErrorMessage("We could not save that response. Please check your connection and try again.");
     }
-    setContent("");
-    await loadInterview();
   }
 
   async function transcribeAudio(blob: Blob) {
@@ -207,43 +222,51 @@ export default function InterviewPage() {
   async function startRecording() {
     if (!supportsRecording) {
       setInputMode("text");
+      setErrorMessage("Voice recording is not available in this browser, so text fallback has been enabled.");
       return;
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    streamRef.current = stream;
-    const recorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = recorder;
-    audioChunksRef.current = [];
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setErrorMessage(null);
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
 
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) audioChunksRef.current.push(event.data);
-    };
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
 
-    recorder.onstart = () => {
-      setRecordingSeconds(0);
-      setReadyToRecord(false);
-      setRecordingState("recording");
-    };
-    recorder.onstop = async () => {
-      setRecordingState("processing");
-      try {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const transcript = await transcribeAudio(blob);
-        if (transcript) {
-          await sendTextMessage(transcript, "voice");
-        }
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "voice processing failed";
-        setStatus(`error: ${message}`);
-      } finally {
-        setRecordingState("idle");
+      recorder.onstart = () => {
         setRecordingSeconds(0);
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-      }
-    };
+        setReadyToRecord(false);
+        setRecordingState("recording");
+      };
+      recorder.onstop = async () => {
+        setRecordingState("processing");
+        try {
+          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const transcript = await transcribeAudio(blob);
+          if (transcript) {
+            await sendTextMessage(transcript, "voice");
+          }
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "voice processing failed";
+          setStatus(`error: ${message}`);
+          setErrorMessage(message);
+        } finally {
+          setRecordingState("idle");
+          setRecordingSeconds(0);
+          streamRef.current?.getTracks().forEach((track) => track.stop());
+        }
+      };
 
-    recorder.start();
+      recorder.start();
+    } catch {
+      setInputMode("text");
+      setErrorMessage("Microphone access was blocked or unavailable. You can continue with text input instead.");
+    }
   }
 
   function stopRecording() {
@@ -254,18 +277,26 @@ export default function InterviewPage() {
   async function completeInterview() {
     if (!interviewId || completionBusy) return;
     setCompletionBusy(true);
-    const res = await fetch(`/api/interviews/${interviewId}/complete`, { method: "POST" });
-    const json = await res.json();
-    if (!res.ok) {
-      setStatus(`error: ${json.error ?? "failed to complete"}`);
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}/complete`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setStatus(`error: ${json.error ?? "failed to complete"}`);
+        setErrorMessage(json.error ?? "We could not complete the interview. Please try again.");
+        setCompletionBusy(false);
+        return;
+      }
+      setJobId(json.jobId ?? null);
+      setCompletedInterview(true);
+      setStatus("completed");
+      setErrorMessage(null);
+      await loadInterview();
       setCompletionBusy(false);
-      return;
+    } catch {
+      setStatus("error: failed to complete");
+      setErrorMessage("We could not complete the interview. Please try again.");
+      setCompletionBusy(false);
     }
-    setJobId(json.jobId ?? null);
-    setCompletedInterview(true);
-    setStatus("completed");
-    await loadInterview();
-    setCompletionBusy(false);
   }
 
   useEffect(() => {
@@ -308,6 +339,7 @@ export default function InterviewPage() {
       </section>
 
       <section className="card grid">
+        {errorMessage ? <div className="meta" style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 12, fontSize: 13 }}>Error: {errorMessage}</div> : null}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="button" style={{ boxShadow: readyToRecord ? "0 0 0 4px rgba(79,70,229,0.18), 0 0 24px rgba(79,70,229,0.28)" : undefined, transform: readyToRecord ? "translateY(-1px)" : undefined, background: readyToRecord ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : undefined, borderColor: readyToRecord ? "#4f46e5" : undefined }} onClick={() => void startRecording()} disabled={recordingState === "recording" || recordingState === "processing"}>Start recording</button>
           <button className="button" style={{ background: recordingState === "recording" ? "#dc2626" : undefined, borderColor: recordingState === "recording" ? "#dc2626" : undefined }} onClick={stopRecording} disabled={recordingState !== "recording"}>Stop and submit</button>
@@ -316,6 +348,7 @@ export default function InterviewPage() {
           <button className="button ghost" onClick={() => setShowCompleteConfirm(true)} disabled={recordingState === "recording" || recordingState === "processing" || completionBusy || completedInterview}>{completionBusy ? "Completing..." : completedInterview ? "Interview completed" : "Complete interview"}</button>
         </div>
         {!supportsRecording ? <div className="meta">Browser recording is unavailable here, so text fallback is enabled.</div> : null}
+        {interview?.status === "completed" && !jobId ? <div className="meta">This interview has already been completed. You can review the report below.</div> : null}
         <div className="meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {recordingState === "recording" ? <span style={{ width: 10, height: 10, borderRadius: 999, background: "#dc2626", display: "inline-block" }} /> : null}
           <span>{recordingNotice}</span>
@@ -343,6 +376,7 @@ export default function InterviewPage() {
             <p className="meta" style={{ margin: "6px 0 10px 0" }}>Your report is being prepared. You can open the report now and refresh if scoring is still in progress.</p>
             {jobId ? <p className="meta" style={{ margin: "0 0 10px 0" }}>Scoring job: {jobId}</p> : null}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="button" onClick={() => void loadInterview()}>Refresh status</button>
               <Link href={`/interview/${interviewId}/results`} className="button" style={{ textDecoration: "none" }}>View report</Link>
               <Link href={`/interview/${interviewId}/results/print`} className="button ghost" style={{ textDecoration: "none" }}>Open print / PDF view</Link>
             </div>

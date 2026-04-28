@@ -38,18 +38,26 @@ export default function InterviewResultsPage() {
   const [scores, setScores] = useState<InterviewScore[]>([]);
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [status, setStatus] = useState("loading");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!interviewId) return;
-    const res = await fetch(`/api/interviews/${interviewId}`, { cache: "no-store" });
-    const json = await res.json();
-    if (!res.ok) {
-      setStatus(`error: ${json.error ?? "failed"}`);
-      return;
+    try {
+      const res = await fetch(`/api/interviews/${interviewId}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) {
+        setStatus(`error: ${json.error ?? "failed"}`);
+        setErrorMessage(json.error ?? "Failed to load the report.");
+        return;
+      }
+      setScores(json.scores ?? []);
+      setReport(json.report ?? null);
+      setStatus((json.scores ?? []).length ? "completed" : "pending");
+      setErrorMessage(null);
+    } catch {
+      setStatus("error: failed");
+      setErrorMessage("We could not load the report. Please refresh and try again.");
     }
-    setScores(json.scores ?? []);
-    setReport(json.report ?? null);
-    setStatus((json.scores ?? []).length ? "completed" : "pending");
   }, [interviewId]);
 
   useEffect(() => {
@@ -83,8 +91,13 @@ export default function InterviewResultsPage() {
       </div>
 
       {scores.length === 0 || !report ? (
-        <section className="card">
+        <section className="card grid">
           <p className="meta">Scoring in progress or no report available yet.</p>
+          {errorMessage ? <p className="meta" style={{ color: "#991b1b" }}>Error: {errorMessage}</p> : null}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="button" onClick={() => void load()}>Refresh report</button>
+            <Link href={`/interview/${interviewId}`} className="button ghost" style={{ textDecoration: "none" }}>Back to interview</Link>
+          </div>
         </section>
       ) : (
         <div className="report-print-safe report-stack-lg">
