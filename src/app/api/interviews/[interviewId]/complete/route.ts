@@ -10,6 +10,19 @@ export async function POST(_: Request, ctx: Ctx) {
     return NextResponse.json({ error: "interviewId is required" }, { status: 400 });
   }
 
+  const existingJobRes = await supabaseServer
+    .from("jobs")
+    .select("id,status")
+    .eq("type", "score_interview")
+    .contains("payload", { interviewId })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingJobRes.error) {
+    return NextResponse.json({ error: existingJobRes.error.message }, { status: 500 });
+  }
+
   const updateRes = await supabaseServer
     .from("interviews")
     .update({ status: "completed", completed_at: new Date().toISOString() })
@@ -17,6 +30,10 @@ export async function POST(_: Request, ctx: Ctx) {
 
   if (updateRes.error) {
     return NextResponse.json({ error: updateRes.error.message }, { status: 500 });
+  }
+
+  if (existingJobRes.data && ["pending", "running", "completed"].includes(String(existingJobRes.data.status))) {
+    return NextResponse.json({ ok: true, jobId: existingJobRes.data.id, reused: true });
   }
 
   const jobRes = await supabaseServer
@@ -34,5 +51,5 @@ export async function POST(_: Request, ctx: Ctx) {
     return NextResponse.json({ error: jobRes.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, jobId: jobRes.data.id });
+  return NextResponse.json({ ok: true, jobId: jobRes.data.id, reused: false });
 }

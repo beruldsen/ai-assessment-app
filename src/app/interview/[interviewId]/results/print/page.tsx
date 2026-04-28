@@ -60,7 +60,7 @@ export default function InterviewPrintPage() {
     <main className="page grid report-print-page">
       <div className="card surface-hero" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div>
-          <h1 className="title" style={{ marginBottom: 4 }}>AI Behavioural Based Interview Report</h1>
+          <h1 className="title" style={{ marginBottom: 4 }}>Sales Engineering Capability Assessment Report</h1>
           <p className="subtitle" style={{ marginBottom: 8 }}>Future Sales Engineer Assessment Centre</p>
           <span className="badge">Status: {status}</span>
         </div>

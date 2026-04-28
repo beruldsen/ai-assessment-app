@@ -38,6 +38,8 @@ export default function InterviewPage() {
   const [pausePromptVisible, setPausePromptVisible] = useState(false);
   const [readyToRecord, setReadyToRecord] = useState(false);
   const [completedInterview, setCompletedInterview] = useState(false);
+  const [completionBusy, setCompletionBusy] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -67,6 +69,10 @@ export default function InterviewPage() {
   useEffect(() => {
     void loadInterview();
   }, [loadInterview]);
+
+  useEffect(() => {
+    setCompletedInterview(interview?.status === "completed");
+  }, [interview?.status]);
 
   const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant"), [messages]);
   const assistantMessages = useMemo(() => messages.filter((m) => m.role === "assistant"), [messages]);
@@ -246,16 +252,20 @@ export default function InterviewPage() {
   }
 
   async function completeInterview() {
-    if (!interviewId) return;
+    if (!interviewId || completionBusy) return;
+    setCompletionBusy(true);
     const res = await fetch(`/api/interviews/${interviewId}/complete`, { method: "POST" });
     const json = await res.json();
     if (!res.ok) {
       setStatus(`error: ${json.error ?? "failed to complete"}`);
+      setCompletionBusy(false);
       return;
     }
+    setJobId(json.jobId ?? null);
     setCompletedInterview(true);
     setStatus("completed");
     await loadInterview();
+    setCompletionBusy(false);
   }
 
   useEffect(() => {
@@ -273,7 +283,7 @@ export default function InterviewPage() {
   return (
     <main className="page grid">
       <div>
-        <h1 className="title">Sales Engineering Capability Assessment</h1>
+        <h1 className="title">Sales Engineering Capability Assessment - AI Behavioural Based Interview</h1>
         <p className="subtitle">Interview ID: {interviewId}</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="badge">Status: {status}</span>
@@ -303,7 +313,7 @@ export default function InterviewPage() {
           <button className="button" style={{ background: recordingState === "recording" ? "#dc2626" : undefined, borderColor: recordingState === "recording" ? "#dc2626" : undefined }} onClick={stopRecording} disabled={recordingState !== "recording"}>Stop and submit</button>
           <button className="button ghost" onClick={replayLastQuestion} disabled={recordingState === "processing"}>Replay question</button>
           <button className="button ghost" onClick={() => setInputMode((m) => (m === "voice" ? "text" : "voice"))}>Use {inputMode === "voice" ? "text fallback" : "voice mode"}</button>
-          <button className="button ghost" onClick={() => setShowCompleteConfirm(true)} disabled={recordingState === "recording" || recordingState === "processing"}>Complete interview</button>
+          <button className="button ghost" onClick={() => setShowCompleteConfirm(true)} disabled={recordingState === "recording" || recordingState === "processing" || completionBusy || completedInterview}>{completionBusy ? "Completing..." : completedInterview ? "Interview completed" : "Complete interview"}</button>
         </div>
         {!supportsRecording ? <div className="meta">Browser recording is unavailable here, so text fallback is enabled.</div> : null}
         <div className="meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -331,6 +341,7 @@ export default function InterviewPage() {
           <div className="card" style={{ borderColor: "#cbd5e1", background: "#eff6ff" }}>
             <strong>Interview completed</strong>
             <p className="meta" style={{ margin: "6px 0 10px 0" }}>Your report is being prepared. You can open the report now and refresh if scoring is still in progress.</p>
+            {jobId ? <p className="meta" style={{ margin: "0 0 10px 0" }}>Scoring job: {jobId}</p> : null}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Link href={`/interview/${interviewId}/results`} className="button" style={{ textDecoration: "none" }}>View report</Link>
               <Link href={`/interview/${interviewId}/results/print`} className="button ghost" style={{ textDecoration: "none" }}>Open print / PDF view</Link>
@@ -350,7 +361,7 @@ export default function InterviewPage() {
             <strong>Complete interview?</strong>
             <p className="meta" style={{ margin: "6px 0 10px 0" }}>Use this only when you believe the interview is finished. Scoring will begin after completion.</p>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="button" onClick={() => { setShowCompleteConfirm(false); void completeInterview(); }}>Yes, complete interview</button>
+              <button className="button" onClick={() => { setShowCompleteConfirm(false); void completeInterview(); }} disabled={completionBusy}>{completionBusy ? "Completing..." : "Yes, complete interview"}</button>
               <button className="button ghost" onClick={() => setShowCompleteConfirm(false)}>Cancel</button>
             </div>
             <p className="meta" style={{ margin: "10px 0 0 0" }}>If you are still mid-interview, cancel here and continue with the next response.</p>

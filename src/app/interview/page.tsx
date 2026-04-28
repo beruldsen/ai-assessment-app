@@ -38,8 +38,8 @@ export default function InterviewStartPage() {
   return (
     <main className="page grid">
       <div>
-        <h1 className="title">AI Behavioural Interview</h1>
-        <p className="subtitle">Launch the integrated behavioural interview module using the same capability framework as the 180 and simulation assessments.</p>
+        <h1 className="title">Sales Engineering Capability Assessment - AI Behavioural Based Interview</h1>
+        <p className="subtitle">Launch the behavioural interview assessment using the same capability framework as the 180 and simulation assessments.</p>
       </div>
 
       <section className="card grid">

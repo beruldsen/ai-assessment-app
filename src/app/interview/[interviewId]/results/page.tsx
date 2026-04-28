@@ -70,7 +70,7 @@ export default function InterviewResultsPage() {
       <div className="card surface-hero report-hero">
         <div>
           <div className="eyebrow">Future Sales Engineer Assessment Centre</div>
-          <h1 className="title" style={{ marginBottom: 6 }}>AI Behavioural Based Interview Report</h1>
+          <h1 className="title" style={{ marginBottom: 6 }}>Sales Engineering Capability Assessment Report</h1>
           <div className="report-chip-row">
             <span className="badge">Interview ID: {interviewId}</span>
             <span className={`badge ${toneClass(report?.overallAverage ?? 3)}`}>Status: {status}</span>
@@ -92,7 +92,7 @@ export default function InterviewResultsPage() {
             <div className="report-sheet-header report-grid-2">
               <div>
                 <div className="report-sheet-title">Executive summary</div>
-                <div className="report-sheet-meta">A concise behavioural view of current Sales Engineering strengths, mixed signals, and development priorities.</div>
+                <div className="report-sheet-meta">A high-level view of current Sales Engineering capability, highlighting strengths, inconsistencies, and the most important development priorities.</div>
               </div>
               <div className={`report-summary-pill ${toneClass(report.overallAverage)}`}>
                 <div className="report-summary-pill-label">Overall rating</div>
