@@ -542,10 +542,10 @@ export async function POST(req: Request, ctx: Ctx) {
         const missingDimensionProbe = missingDimension ? buildProbeForMissingDimension(capability, missingDimension) : null;
         assistant = missingDimensionProbe ?? nextProbe(capability, probeIndex, content);
         if (resistance.resistant && missingDimensionProbe) {
-          assistant = `I heard that. I just need one more detail on ${missingDimension}: ${missingDimensionProbe.charAt(0).toLowerCase()}${missingDimensionProbe.slice(1)}`;
+          assistant = `I heard that. I just need one more detail on ${missingDimension}. ${missingDimensionProbe}`;
         } else if (missingDimensionProbe) {
           assistant = probeIndex >= 1
-            ? `I’d like one more detail to understand the ${missingDimension} here. ${missingDimensionProbe}`
+            ? `I just need one more detail on ${missingDimension}. ${missingDimensionProbe}`
             : missingDimensionProbe;
         }
         responseMetadata = {
