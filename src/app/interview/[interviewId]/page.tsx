@@ -205,6 +205,7 @@ export default function InterviewPage() {
 
   async function sendTextMessage(value: string, mode: "voice" | "text") {
     if (!interviewId || !value.trim()) return;
+    stopActiveAudio();
     try {
       const res = await fetch(`/api/interviews/${interviewId}/message`, {
         method: "POST",
@@ -284,6 +285,7 @@ export default function InterviewPage() {
     }
 
     try {
+      stopActiveAudio();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setErrorMessage(null);
       streamRef.current = stream;
@@ -444,9 +446,10 @@ export default function InterviewPage() {
         </div>
         {!supportsRecording ? <div className="meta">Browser recording is unavailable here, so text fallback is enabled.</div> : null}
         {interview?.status === "completed" && !jobId ? <div className="meta">This interview has already been completed. You can review the report below.</div> : null}
-        <div className="meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="meta" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {recordingState === "recording" ? <span style={{ width: 10, height: 10, borderRadius: 999, background: "#dc2626", display: "inline-block" }} /> : null}
           <span>{recordingNotice}</span>
+          {speakingMessageId && recordingState === "idle" ? <span>Starting your answer will stop playback.</span> : null}
           {readyToRecord && recordingState === "idle" ? <strong style={{ color: "#4f46e5" }}>You can answer now.</strong> : null}
           {recordingState === "recording" ? <strong style={{ marginLeft: "auto" }}>{Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, "0")}</strong> : null}
         </div>
