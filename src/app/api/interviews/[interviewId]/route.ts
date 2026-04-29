@@ -29,7 +29,7 @@ export async function GET(_: Request, ctx: Ctx) {
       .order("capability", { ascending: true }),
     supabaseServer
       .from("jobs")
-      .select("id,status,last_error,error,attempts,created_at,updated_at")
+      .select("id,status,last_error,error,attempts,created_at")
       .eq("type", "score_interview")
       .contains("payload", { interviewId })
       .order("created_at", { ascending: false })
