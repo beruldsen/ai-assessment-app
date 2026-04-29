@@ -30,6 +30,7 @@ type Metadata = {
   participantResistanceReason?: string;
   reusedCrossCapabilityEvidence?: boolean;
   missingDimensions?: string[];
+  contextualReference?: string;
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
@@ -310,6 +311,34 @@ function detectParticipantResistance(text: string) {
   };
 }
 
+function contextualReferencePrefix(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  const lc = normalized.toLowerCase();
+  if (lc.includes("manufacturing")) return "In that manufacturing example,";
+  if (lc.includes("cio")) return "In the CIO example,";
+  if (lc.includes("finance lead") || lc.includes("finance")) return "In the example with the finance lead,";
+  if (lc.includes("operations vp")) return "In the operations VP conversation,";
+  if (lc.includes("value model")) return "In the value-model example,";
+  if (lc.includes("plant manager")) return "When you described aligning the plant manager and executive stakeholders,";
+  if (lc.includes("stakeholder") || lc.includes("executive")) return "In the example you described with those stakeholders,";
+
+  const firstSentence = normalized.split(/(?<=[.!?])\s+/)[0] ?? normalized;
+  const shortSentence = firstSentence.length > 140 ? `${firstSentence.slice(0, 137).trim()}...` : firstSentence;
+  return `Earlier you mentioned: "${shortSentence}"`;
+}
+
+function buildNaturalReuseLead(reference: string | null, variantSeed = 0) {
+  if (!reference) return null;
+  const options = [
+    `${reference} staying with that same situation,`,
+    `${reference} building on that,`,
+    `${reference} staying with that example,`,
+  ];
+  return options[variantSeed % options.length] ?? `${reference} staying with that example,`;
+}
+
 function detectBestMatchingCapability(text: string): Capability | null {
   const lc = text.toLowerCase();
   const scored = (Object.entries(CAPABILITY_KEYWORDS) as [Capability, string[]][])
@@ -399,10 +428,11 @@ export async function POST(req: Request, ctx: Ctx) {
     const userMessages = capabilityHistory.filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
     const priorResistanceCount = capabilityHistory.filter((m) => m.role === "user" && Boolean((m.metadata as Metadata | null)?.participantResistance)).length;
     const priorAcceptedMessages = fullHistory.filter((m) => m.role === "user" && (m.metadata as Metadata | null)?.fitAccepted !== false);
-    const crossCapabilityContext = priorAcceptedMessages
-      .filter((m) => m.capability && m.capability !== capability)
+    const priorCrossCapabilityMessages = priorAcceptedMessages.filter((m) => m.capability && m.capability !== capability);
+    const crossCapabilityContext = priorCrossCapabilityMessages
       .map((m) => m.transcript_text)
       .join("\n");
+    const latestCrossCapabilityMessage = [...priorCrossCapabilityMessages].reverse()[0]?.transcript_text ?? null;
     const probeIndex = userMessages.length;
 
     const { error: insertUserErr } = await supabaseServer.from("interview_messages").insert({
@@ -432,12 +462,14 @@ export async function POST(req: Request, ctx: Ctx) {
     const combinedCrossCapabilityText = [crossCapabilityContext, combinedCapabilityText].filter(Boolean).join("\n");
     const missingDimensions = missingEvidenceDimensions(capability, combinedCrossCapabilityText, probeIndex + 1);
     const crossCapabilityEvidenceScore = crossCapabilityContext ? evidenceScore(capability, combinedCrossCapabilityText) : 0;
+    const contextualReference = latestCrossCapabilityMessage ? contextualReferencePrefix(latestCrossCapabilityMessage) : null;
     let responseMetadata: Metadata = {
       outputMode: body?.outputMode ?? "voice",
       evidenceScore: Math.max(answerEvidenceScore, crossCapabilityEvidenceScore),
       strategicSignals: capability === "Strategic Account Thinking" ? strategicSignals(content) : undefined,
       reusedCrossCapabilityEvidence: crossCapabilityEvidenceScore > answerEvidenceScore,
       missingDimensions,
+      contextualReference: contextualReference ?? undefined,
     };
 
     if (resistance.resistant) {
@@ -505,12 +537,12 @@ export async function POST(req: Request, ctx: Ctx) {
         const next = nextCapability(interview, capability);
         if (next) {
           responseCapability = next;
-          const transitionPrefix = crossCapabilityEvidenceScore >= MIN_EVIDENCE_SCORE_TO_ADVANCE
-            ? "I can use the example you already shared, so we do not need to repeat it. "
+          const transitionLead = crossCapabilityEvidenceScore >= MIN_EVIDENCE_SCORE_TO_ADVANCE
+            ? buildNaturalReuseLead(contextualReference, probeIndex) ?? "Staying with that same example,"
             : "";
           assistant = shouldForceAdvance && !readyToAdvance
-            ? `${transitionPrefix}Thank you, that gives me enough context for this area. Let’s move on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
-            : `${transitionPrefix}${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
+            ? `${transitionLead ? `${transitionLead} ` : ""}Thank you, that gives me enough context for this area. Let’s move on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
+            : `${transitionLead ? `${transitionLead} ` : ""}${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
           responseMetadata = {
             ...responseMetadata,
             completedCapability: true,
@@ -541,12 +573,15 @@ export async function POST(req: Request, ctx: Ctx) {
         const missingDimension = missingDimensions[0] ?? null;
         const missingDimensionProbe = missingDimension ? buildProbeForMissingDimension(capability, missingDimension) : null;
         assistant = missingDimensionProbe ?? nextProbe(capability, probeIndex, content);
+        const naturalLead = responseMetadata.reusedCrossCapabilityEvidence
+          ? buildNaturalReuseLead(contextualReference, probeIndex)
+          : null;
         if (resistance.resistant && missingDimensionProbe) {
-          assistant = `I heard that. I just need one more detail on ${missingDimension}. ${missingDimensionProbe}`;
+          assistant = `${naturalLead ? `${naturalLead} ` : ""}I heard that. I just need one more detail on ${missingDimension}. ${missingDimensionProbe}`;
         } else if (missingDimensionProbe) {
           assistant = probeIndex >= 1
-            ? `I just need one more detail on ${missingDimension}. ${missingDimensionProbe}`
-            : missingDimensionProbe;
+            ? `${naturalLead ? `${naturalLead} ` : ""}I just need one more detail on ${missingDimension}. ${missingDimensionProbe}`
+            : `${naturalLead ? `${naturalLead} ` : ""}${missingDimensionProbe}`;
         }
         responseMetadata = {
           ...responseMetadata,
@@ -582,6 +617,8 @@ export async function POST(req: Request, ctx: Ctx) {
             "Rules:",
             "- Stay strictly on the current capability, but recognize that strong answers may overlap with adjacent capabilities.",
             "- Reuse evidence from earlier answers when it is relevant to the current capability. Do not force the participant to retell the same story unless a specific missing dimension still needs evidence.",
+            "- When referencing a prior answer, mention the actual situation, stakeholder, or example the participant described. Avoid generic phrases like 'you already shared an example' unless there is no better contextual reference.",
+            "- Vary the language used to build on prior answers so it feels natural rather than templated.",
             "- If an answer partly fits the current capability, do not reject it outright. Briefly acknowledge the relevant part and ask only for the missing evidence needed for this capability.",
             "- If the participant signals they already answered, do not restate the original question. Ask only for the missing dimension, or move on if enough evidence already exists.",
             "- When a follow-up is needed after prior evidence exists, briefly justify it in one short sentence.",
