@@ -31,6 +31,7 @@ type Metadata = {
   reusedCrossCapabilityEvidence?: boolean;
   missingDimensions?: string[];
   contextualReference?: string;
+  exampleFingerprint?: string | null;
 };
 
 const MIN_USER_TURNS_PER_CAPABILITY = 2;
@@ -38,6 +39,7 @@ const MAX_USER_TURNS_PER_CAPABILITY = 5;
 const MIN_EVIDENCE_SCORE_TO_ADVANCE = 5;
 const MAX_OFF_TARGET_REDIRECTS = 3;
 const MAX_PARTICIPANT_RESISTANCE_BEFORE_ADVANCE = 2;
+const TARGET_DISTINCT_EXAMPLES = 3;
 
 const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
   "Business Value Discovery & Co-Creation": ["business outcome", "value", "metrics", "adoption", "forecast", "ramp", "problem", "discovery"],
@@ -311,35 +313,92 @@ function detectParticipantResistance(text: string) {
   };
 }
 
+function extractExampleFingerprint(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  const lc = normalized.toLowerCase();
+  if (lc.includes("aws migration")) return "aws-migration";
+  if (lc.includes("cloud-security") || lc.includes("security architect") || lc.includes("compliance framework")) return "cloud-security-compliance";
+  if (lc.includes("manufacturing customer")) return "manufacturing-customer";
+  if (lc.includes("revenue") && lc.includes("growth")) return "revenue-growth";
+  if (lc.includes("high tech customer")) return "high-tech-customer";
+  if (lc.includes("pilot") && lc.includes("regional")) return "regional-rollout-pilot";
+  return normalized.toLowerCase().slice(0, 80);
+}
+
 function contextualReferencePrefix(text: string) {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return null;
 
   const lc = normalized.toLowerCase();
-  if (lc.includes("aws migration")) return "In that AWS migration opportunity,";
-  if (lc.includes("cloud migration")) return "In that cloud migration example,";
-  if (lc.includes("high tech customer")) return "In that high-tech customer example,";
-  if (lc.includes("revenue")) return "In the revenue-growth example you described,";
-  if (lc.includes("manufacturing")) return "In that manufacturing example,";
-  if (lc.includes("value model") || lc.includes("tco model")) return "In the business-case example you described,";
-  if (lc.includes("plant manager")) return "When you described aligning the plant manager and executive stakeholders,";
-  if (lc.includes("security architect")) return "In the example with the security architect,";
-  if (lc.includes("finance lead")) return "In the example with the finance lead,";
-  if (lc.includes("operations vp")) return "In the operations VP conversation,";
+  if (lc.includes("aws migration")) return "In that AWS migration opportunity";
+  if (lc.includes("cloud-security") || lc.includes("security architect") || lc.includes("compliance framework")) return "In that cloud-security opportunity";
+  if (lc.includes("cloud migration")) return "In that cloud migration example";
+  if (lc.includes("high tech customer")) return "In that high-tech customer example";
+  if (lc.includes("revenue") && lc.includes("growth")) return "In that revenue-growth example";
+  if (lc.includes("manufacturing")) return "In that manufacturing example";
+  if (lc.includes("value model") || lc.includes("tco model") || lc.includes("business case")) return "In that business-case example";
+  if (lc.includes("pilot") && lc.includes("regional")) return "In that regional rollout example";
+  if (lc.includes("finance lead")) return "In the finance-lead example";
+  if (lc.includes("operations vp")) return "In the operations VP conversation";
 
   const firstSentence = normalized.split(/(?<=[.!?])\s+/)[0] ?? normalized;
-  const shortSentence = firstSentence.length > 140 ? `${firstSentence.slice(0, 137).trim()}...` : firstSentence;
-  return `Earlier you mentioned: "${shortSentence}"`;
+  const shortSentence = firstSentence.length > 90 ? `${firstSentence.slice(0, 87).trim()}...` : firstSentence;
+  return `Earlier, you mentioned ${shortSentence}`;
 }
 
 function buildNaturalReuseLead(reference: string | null, variantSeed = 0) {
   if (!reference) return null;
   const options = [
-    `${reference} if it helps, stay with that same situation, or use a different example if that is a better fit,`,
-    `${reference} building on that, or using another example if needed,`,
-    `${reference} you can stay with that example, or switch to a better one if needed,`,
+    `${reference}, if helpful, stay with that situation, or use another example if it fits better.` ,
+    `${reference}. You can stay with that example, or switch if another one fits better.` ,
+    `${reference}. If that is not the best fit, feel free to use another example.` ,
   ];
-  return options[variantSeed % options.length] ?? `${reference} you can stay with that example, or switch to a better one if needed,`;
+  return options[variantSeed % options.length] ?? `${reference}. You can stay with that example, or switch if another one fits better.`;
+}
+
+function countDistinctExamples(messages: Array<{ transcript_text: string; metadata?: Record<string, unknown> | null }>) {
+  const seen = new Set<string>();
+  for (const message of messages) {
+    const metaFingerprint = typeof message.metadata?.exampleFingerprint === "string" ? message.metadata.exampleFingerprint : null;
+    const fingerprint = metaFingerprint || extractExampleFingerprint(message.transcript_text);
+    if (fingerprint) seen.add(fingerprint);
+  }
+  return seen.size;
+}
+
+function buildTransitionQuestion(next: Capability, reference: string | null, shouldInviteFreshExample: boolean, variantSeed = 0) {
+  const firstProbe = INTERVIEW_RUBRIC[next].probes[0] ?? "What was the measurable result?";
+  const prompts: Record<Capability, { same: string; fresh: string }> = {
+    "Business Value Discovery & Co-Creation": {
+      same: `${reference ? `${reference}, ` : ""}what helped you realise the stated need was only part of the real problem? ${firstProbe}`,
+      fresh: `If another example shows this more clearly, use that. Tell me about a time you helped a customer move from an initial request to a clearer business problem worth solving. ${firstProbe}`,
+    },
+    "Customer & Internal Influence / Collaboration": {
+      same: `${reference ? `${reference}, ` : ""}who did you need to align, and where did influence matter more than formal authority? ${firstProbe}`,
+      fresh: `If another example fits better, use that. Describe a situation where you had to align multiple stakeholders to move something forward. ${firstProbe}`,
+    },
+    "Executive Communication, Storytelling & Presence": {
+      same: `${reference ? `${reference}, ` : ""}how did you adapt the message for that audience and keep them with you? ${firstProbe}`,
+      fresh: `If another example shows this more clearly, use that. Tell me about a time you had to explain something complex to a senior, non-technical, or mixed audience and keep them engaged. ${firstProbe}`,
+    },
+    "Strategic Account Thinking": {
+      same: `${reference ? `${reference}, ` : ""}what bigger account dynamic did you see that others were missing? ${firstProbe}`,
+      fresh: `If another example fits better, use that. Describe a time you shaped the direction of an account or opportunity beyond the immediate ask. ${firstProbe}`,
+    },
+    "AI Fluency & Human Trust Advantage": {
+      same: `${reference ? `${reference}, ` : ""}where did AI help you move faster without replacing your own judgement? ${firstProbe}`,
+      fresh: `If another example shows this better, use that. Tell me about a time you used AI to improve your effectiveness without giving up your own judgement. ${firstProbe}`,
+    },
+    "Technical Credibility & Continuous Learning": {
+      same: `${reference ? `${reference}, ` : ""}what did you have to get up to speed on quickly, and how did you apply it? ${firstProbe}`,
+      fresh: `If another example fits better, use that. Tell me about a time you had to get up to speed quickly on a new technology, domain, or technical issue and apply it in a customer context. ${firstProbe}`,
+    },
+  };
+
+  const selected = shouldInviteFreshExample ? prompts[next].fresh : prompts[next].same;
+  return selected.replace(/\s+/g, " ").trim();
 }
 
 function detectBestMatchingCapability(text: string): Capability | null {
@@ -437,6 +496,8 @@ export async function POST(req: Request, ctx: Ctx) {
       .join("\n");
     const latestCrossCapabilityMessage = [...priorCrossCapabilityMessages].reverse()[0]?.transcript_text ?? null;
     const probeIndex = userMessages.length;
+    const currentExampleFingerprint = extractExampleFingerprint(content);
+    const distinctExampleCount = countDistinctExamples(priorAcceptedMessages);
 
     const { error: insertUserErr } = await supabaseServer.from("interview_messages").insert({
       interview_id: interviewId,
@@ -451,6 +512,7 @@ export async function POST(req: Request, ctx: Ctx) {
         detectedCapability: fit.detectedCapability,
         participantResistance: resistance.resistant,
         participantResistanceReason: resistance.reason ?? undefined,
+        exampleFingerprint: currentExampleFingerprint,
       } satisfies Metadata,
     });
 
@@ -540,12 +602,10 @@ export async function POST(req: Request, ctx: Ctx) {
         const next = nextCapability(interview, capability);
         if (next) {
           responseCapability = next;
-          const transitionLead = crossCapabilityEvidenceScore >= MIN_EVIDENCE_SCORE_TO_ADVANCE
-            ? buildNaturalReuseLead(contextualReference, probeIndex) ?? "Staying with that same example,"
-            : "";
+          const shouldInviteFreshExample = distinctExampleCount < TARGET_DISTINCT_EXAMPLES && probeIndex >= 1 && !responseMetadata.reusedCrossCapabilityEvidence;
           assistant = shouldForceAdvance && !readyToAdvance
-            ? `${transitionLead ? `${transitionLead} ` : ""}Thank you, that gives me enough context for this area. Let’s move on. ${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`
-            : `${transitionLead ? `${transitionLead} ` : ""}${INTERVIEW_RUBRIC[next].coreQuestion} ${INTERVIEW_RUBRIC[next].probes[0]}`;
+            ? `Thank you, that gives me enough context for this area. Let’s move on. ${buildTransitionQuestion(next, contextualReference, shouldInviteFreshExample, probeIndex)}`
+            : buildTransitionQuestion(next, contextualReference, shouldInviteFreshExample, probeIndex);
           responseMetadata = {
             ...responseMetadata,
             completedCapability: true,
