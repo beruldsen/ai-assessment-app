@@ -332,11 +332,11 @@ function contextualReferencePrefix(text: string) {
 function buildNaturalReuseLead(reference: string | null, variantSeed = 0) {
   if (!reference) return null;
   const options = [
-    `${reference} staying with that same situation,`,
-    `${reference} building on that,`,
-    `${reference} staying with that example,`,
+    `${reference} if it helps, stay with that same situation, or use a different example if that is a better fit,`,
+    `${reference} building on that, or using another example if needed,`,
+    `${reference} you can stay with that example, or switch to a better one if needed,`,
   ];
-  return options[variantSeed % options.length] ?? `${reference} staying with that example,`;
+  return options[variantSeed % options.length] ?? `${reference} you can stay with that example, or switch to a better one if needed,`;
 }
 
 function detectBestMatchingCapability(text: string): Capability | null {
@@ -609,6 +609,7 @@ export async function POST(req: Request, ctx: Ctx) {
             "- Stay strictly on the current capability, but recognize that strong answers may overlap with adjacent capabilities.",
             "- Reuse evidence from earlier answers when it is relevant to the current capability. Do not force the participant to retell the same story unless a specific missing dimension still needs evidence.",
             "- When referencing a prior answer, mention the actual situation, stakeholder, or example the participant described. Avoid generic phrases like 'you already shared an example' unless there is no better contextual reference.",
+            "- If you build on a prior example, make clear they may stay with that example or switch to a different one if that is a better fit for the capability being assessed.",
             "- Vary the language used to build on prior answers so it feels natural rather than templated.",
             "- If an answer partly fits the current capability, do not reject it outright. Briefly acknowledge the relevant part and ask only for the missing evidence needed for this capability.",
             "- If the participant signals they already answered, do not restate the original question. Ask only for the missing dimension, or move on if enough evidence already exists.",
