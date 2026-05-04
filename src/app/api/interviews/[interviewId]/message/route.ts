@@ -316,13 +316,16 @@ function contextualReferencePrefix(text: string) {
   if (!normalized) return null;
 
   const lc = normalized.toLowerCase();
+  if (lc.includes("aws migration")) return "In that AWS migration opportunity,";
+  if (lc.includes("cloud migration")) return "In that cloud migration example,";
+  if (lc.includes("high tech customer")) return "In that high-tech customer example,";
+  if (lc.includes("revenue")) return "In the revenue-growth example you described,";
   if (lc.includes("manufacturing")) return "In that manufacturing example,";
-  if (lc.includes("cio")) return "In the CIO example,";
-  if (lc.includes("finance lead") || lc.includes("finance")) return "In the example with the finance lead,";
-  if (lc.includes("operations vp")) return "In the operations VP conversation,";
-  if (lc.includes("value model")) return "In the value-model example,";
+  if (lc.includes("value model") || lc.includes("tco model")) return "In the business-case example you described,";
   if (lc.includes("plant manager")) return "When you described aligning the plant manager and executive stakeholders,";
-  if (lc.includes("stakeholder") || lc.includes("executive")) return "In the example you described with those stakeholders,";
+  if (lc.includes("security architect")) return "In the example with the security architect,";
+  if (lc.includes("finance lead")) return "In the example with the finance lead,";
+  if (lc.includes("operations vp")) return "In the operations VP conversation,";
 
   const firstSentence = normalized.split(/(?<=[.!?])\s+/)[0] ?? normalized;
   const shortSentence = firstSentence.length > 140 ? `${firstSentence.slice(0, 137).trim()}...` : firstSentence;
@@ -608,8 +611,13 @@ export async function POST(req: Request, ctx: Ctx) {
             "Rules:",
             "- Stay strictly on the current capability, but recognize that strong answers may overlap with adjacent capabilities.",
             "- Reuse evidence from earlier answers when it is relevant to the current capability. Do not force the participant to retell the same story unless a specific missing dimension still needs evidence.",
-            "- When referencing a prior answer, mention the actual situation, stakeholder, or example the participant described. Avoid generic phrases like 'you already shared an example' unless there is no better contextual reference.",
+            "- When referencing a prior answer, mention the actual situation, stakeholder, or example the participant described. Prefer the situation itself over a shallow stakeholder label where possible.",
             "- If you build on a prior example, make clear they may stay with that example or switch to a different one if that is a better fit for the capability being assessed.",
+            "- Balance depth and variety across the full interview. It is good to reuse earlier examples from different angles, but do not rely on a single example for the entire interview.",
+            "- Aim for roughly 2 to 3 examples across the full interview: depth from one example, validation from others.",
+            "- Introduce a different example only when the capability is not clearly demonstrated, you need to validate consistency of behaviour, or the conversation is becoming repetitive.",
+            "- When asking for another example, keep it brief and optional, for example: 'Is that typical of how you handle this?', 'Can you share another example where this came up?', or 'Have you approached this differently in another situation?'.",
+            "- Do not force a full repeated deep-dive into a new example unless it is necessary to assess the capability properly.",
             "- Vary the language used to build on prior answers so it feels natural rather than templated.",
             "- If an answer partly fits the current capability, do not reject it outright. Briefly acknowledge the relevant part and ask only for the missing evidence needed for this capability.",
             "- If the participant signals they already answered, do not restate the original question. Ask only for the missing dimension, or move on if enough evidence already exists.",
