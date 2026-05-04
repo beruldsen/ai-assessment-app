@@ -53,7 +53,6 @@ export default function InterviewPage() {
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [pausePromptVisible, setPausePromptVisible] = useState(false);
   const [readyToRecord, setReadyToRecord] = useState(false);
-  const [completedInterview, setCompletedInterview] = useState(false);
   const [completionBusy, setCompletionBusy] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -99,9 +98,6 @@ export default function InterviewPage() {
     void loadInterview();
   }, [loadInterview]);
 
-  useEffect(() => {
-    setCompletedInterview(interview?.status === "completed");
-  }, [interview?.status]);
 
   const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant"), [messages]);
   const assistantMessages = useMemo(() => messages.filter((m) => m.role === "assistant"), [messages]);
@@ -346,7 +342,6 @@ export default function InterviewPage() {
         return;
       }
       setJobId(json.jobId ?? null);
-      setCompletedInterview(true);
       setStatus("completed");
       setErrorMessage(null);
       await loadInterview();
@@ -372,10 +367,10 @@ export default function InterviewPage() {
   }, [stopActiveAudio]);
 
   useEffect(() => {
-    if (showCompleteConfirm || completedInterview || recordingState === "processing") {
+    if (showCompleteConfirm || interview?.status === "completed" || recordingState === "processing") {
       stopActiveAudio();
     }
-  }, [showCompleteConfirm, completedInterview, recordingState, stopActiveAudio]);
+  }, [showCompleteConfirm, interview?.status, recordingState, stopActiveAudio]);
 
   function replayLastQuestion() {
     if (lastAssistant?.transcript_text) {
@@ -425,7 +420,7 @@ export default function InterviewPage() {
             </div>
           </div>
         ) : null}
-        {completedInterview ? (
+        {interview?.status === "completed" ? (
           <div className="interview-inline-callout interview-inline-callout-success">
             <strong>Interview completed</strong>
             <p className="meta" style={{ margin: "6px 0 10px 0" }}>Your report is being prepared. Open the report below, or refresh if scoring is still in progress.</p>
@@ -442,7 +437,7 @@ export default function InterviewPage() {
           <button className="button" style={{ background: recordingState === "recording" ? "#dc2626" : undefined, borderColor: recordingState === "recording" ? "#dc2626" : undefined }} onClick={stopRecording} disabled={recordingState !== "recording"}>Stop and submit</button>
           <button className="button ghost" onClick={replayLastQuestion} disabled={recordingState === "processing"}>Replay question</button>
           <button className="button ghost" onClick={() => setInputMode((m) => (m === "voice" ? "text" : "voice"))}>Use {inputMode === "voice" ? "text fallback" : "voice mode"}</button>
-          <button className="button ghost" onClick={() => setShowCompleteConfirm(true)} disabled={recordingState === "recording" || recordingState === "processing" || completionBusy || completedInterview}>{completionBusy ? "Completing..." : completedInterview ? "Interview completed" : "Complete interview"}</button>
+          <button className="button ghost" onClick={() => setShowCompleteConfirm(true)} disabled={recordingState === "recording" || recordingState === "processing" || completionBusy || interview?.status === "completed"}>{completionBusy ? "Completing..." : interview?.status === "completed" ? "Interview completed" : "Complete interview"}</button>
         </div>
         {!supportsRecording ? <div className="meta">Browser recording is unavailable here, so text fallback is enabled.</div> : null}
         {interview?.status === "completed" && !jobId ? <div className="meta">This interview has already been completed. You can review the report below.</div> : null}

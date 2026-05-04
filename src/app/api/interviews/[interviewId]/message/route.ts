@@ -559,15 +559,6 @@ export async function POST(req: Request, ctx: Ctx) {
             fitAccepted: true,
             forcedAdvance: shouldForceAdvance && !readyToAdvance,
           };
-
-          const { error: finalUpdateErr } = await supabaseServer
-            .from("interviews")
-            .update({ status: "completed", completed_at: new Date().toISOString() })
-            .eq("id", interviewId);
-
-          if (finalUpdateErr) {
-            return NextResponse.json({ error: finalUpdateErr.message }, { status: 500 });
-          }
         }
       } else {
         const missingDimension = missingDimensions[0] ?? null;
