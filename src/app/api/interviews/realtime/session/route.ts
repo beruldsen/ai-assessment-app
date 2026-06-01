@@ -40,7 +40,15 @@ export async function POST(req: Request) {
 
     const answerSdp = await response.text();
     if (!response.ok) {
-      return NextResponse.json({ error: answerSdp || "Failed to create realtime call" }, { status: response.status });
+      return NextResponse.json({
+        error: answerSdp || "Failed to create realtime call",
+        debug: {
+          sentSession: sessionConfig,
+          sentSdpLength: sdp.length,
+          contentType: response.headers.get("content-type"),
+          status: response.status,
+        },
+      }, { status: response.status });
     }
 
     return new Response(answerSdp, {
