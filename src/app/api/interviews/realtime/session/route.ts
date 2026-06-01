@@ -45,6 +45,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         error: answerSdp || "Failed to create realtime call",
         debug: {
+          requestUrl: `https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(REALTIME_MODEL)}`,
           sentSession: sessionConfig,
           sentSdpLength: sdp.length,
           contentType: response.headers.get("content-type"),
