@@ -19,13 +19,11 @@ export async function POST(req: Request) {
     const formData = new FormData();
     formData.set("sdp", sdp);
     const sessionConfig = JSON.stringify({
-      session: {
-        type: "realtime",
-        model: REALTIME_MODEL,
-        audio: {
-          output: {
-            voice: DEFAULT_VOICE,
-          },
+      type: "realtime",
+      model: REALTIME_MODEL,
+      audio: {
+        output: {
+          voice: DEFAULT_VOICE,
         },
       },
     });
