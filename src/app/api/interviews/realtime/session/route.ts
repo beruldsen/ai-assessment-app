@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 const REALTIME_MODEL = "gpt-4o-realtime-preview";
@@ -11,30 +12,29 @@ export async function POST() {
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/realtime/sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const openai = new OpenAI({ apiKey });
+    const session = await openai.realtime.clientSecrets.create({
+      session: {
+        type: "realtime",
         model: REALTIME_MODEL,
-        voice: DEFAULT_VOICE,
-      }),
+        audio: {
+          output: {
+            voice: DEFAULT_VOICE,
+          },
+        },
+      },
     });
 
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
-
-    if (!response.ok) {
-      return NextResponse.json({ error: data?.error?.message ?? "Failed to create realtime session" }, { status: response.status });
-    }
+    const realtimeSession = session.session && session.session.type === "realtime" ? session.session : null;
 
     return NextResponse.json({
-      client_secret: data?.client_secret,
-      model: data?.model ?? REALTIME_MODEL,
-      voice: data?.voice ?? DEFAULT_VOICE,
-      expires_at: data?.expires_at ?? null,
+      client_secret: {
+        value: session.value,
+        expires_at: session.expires_at,
+      },
+      model: realtimeSession?.model ?? REALTIME_MODEL,
+      voice: realtimeSession?.audio?.output?.voice ?? DEFAULT_VOICE,
+      expires_at: session.expires_at ?? null,
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to create realtime session";
