@@ -1,10 +1,9 @@
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
-const REALTIME_MODEL = "gpt-4o-realtime-preview";
-const DEFAULT_VOICE = "alloy";
+const REALTIME_MODEL = "gpt-realtime";
+const DEFAULT_VOICE = "marin";
 
-export async function POST() {
+export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -12,32 +11,42 @@ export async function POST() {
   }
 
   try {
-    const openai = new OpenAI({ apiKey });
-    const session = await openai.realtime.clientSecrets.create({
-      session: {
-        type: "realtime",
-        model: REALTIME_MODEL,
-        audio: {
-          output: {
-            voice: DEFAULT_VOICE,
-          },
+    const sdp = await req.text();
+    if (!sdp.trim()) {
+      return NextResponse.json({ error: "Missing SDP offer" }, { status: 400 });
+    }
+
+    const formData = new FormData();
+    formData.set("sdp", sdp);
+    formData.set("session", JSON.stringify({
+      type: "realtime",
+      model: REALTIME_MODEL,
+      audio: {
+        output: {
+          voice: DEFAULT_VOICE,
         },
       },
+    }));
+
+    const response = await fetch("https://api.openai.com/v1/realtime/calls", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
     });
 
-    const realtimeSession = session.session && session.session.type === "realtime" ? session.session : null;
+    const answerSdp = await response.text();
+    if (!response.ok) {
+      return NextResponse.json({ error: answerSdp || "Failed to create realtime call" }, { status: response.status });
+    }
 
-    return NextResponse.json({
-      client_secret: {
-        value: session.value,
-        expires_at: session.expires_at,
-      },
-      model: realtimeSession?.model ?? REALTIME_MODEL,
-      voice: realtimeSession?.audio?.output?.voice ?? DEFAULT_VOICE,
-      expires_at: session.expires_at ?? null,
+    return new Response(answerSdp, {
+      status: 200,
+      headers: { "Content-Type": "application/sdp" },
     });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Failed to create realtime session";
+    const message = e instanceof Error ? e.message : "Failed to create realtime call";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

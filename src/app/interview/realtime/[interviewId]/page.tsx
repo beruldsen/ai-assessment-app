@@ -143,12 +143,6 @@ export default function RealtimeInterviewSessionPage() {
     setConnectionState("connecting");
 
     try {
-      const tokenRes = await fetch("/api/interviews/realtime/session", { method: "POST" });
-      const tokenJson = await tokenRes.json();
-      if (!tokenRes.ok || !tokenJson?.client_secret?.value) {
-        throw new Error(tokenJson.error ?? "Failed to create realtime session");
-      }
-
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
 
@@ -212,10 +206,9 @@ export default function RealtimeInterviewSessionPage() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const sdpResponse = await fetch("https://api.openai.com/v1/realtime", {
+      const sdpResponse = await fetch("/api/interviews/realtime/session", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${tokenJson.client_secret.value}`,
           "Content-Type": "application/sdp",
         },
         body: offer.sdp,
