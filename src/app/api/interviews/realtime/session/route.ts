@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
     formData.set("session", sessionConfig);
 
-    const response = await fetch("https://api.openai.com/v1/realtime/calls", {
+    const response = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(REALTIME_MODEL)}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
