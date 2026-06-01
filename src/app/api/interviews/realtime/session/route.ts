@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const formData = new FormData();
     formData.set("sdp", sdp);
-    formData.set("session", JSON.stringify({
+    const sessionConfig = JSON.stringify({
       type: "realtime",
       model: REALTIME_MODEL,
       audio: {
@@ -26,7 +26,9 @@ export async function POST(req: Request) {
           voice: DEFAULT_VOICE,
         },
       },
-    }));
+    });
+
+    formData.set("session", sessionConfig);
 
     const response = await fetch("https://api.openai.com/v1/realtime/calls", {
       method: "POST",
