@@ -212,11 +212,12 @@ export default function RealtimeInterviewSessionPage() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=${encodeURIComponent(tokenJson.model)}`, {
+      const sdpResponse = await fetch("https://api.openai.com/v1/realtime", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${tokenJson.client_secret.value}`,
           "Content-Type": "application/sdp",
+          "OpenAI-Beta": "realtime=v1",
         },
         body: offer.sdp,
       });
