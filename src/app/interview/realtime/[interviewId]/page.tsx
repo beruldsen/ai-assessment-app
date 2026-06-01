@@ -217,7 +217,6 @@ export default function RealtimeInterviewSessionPage() {
         headers: {
           Authorization: `Bearer ${tokenJson.client_secret.value}`,
           "Content-Type": "application/sdp",
-          "OpenAI-Beta": "realtime=v1",
         },
         body: offer.sdp,
       });
