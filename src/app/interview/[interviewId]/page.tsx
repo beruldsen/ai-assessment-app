@@ -69,6 +69,7 @@ export default function InterviewPage() {
   const highlightTimeoutsRef = useRef<number[]>([]);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [speakingSentenceIndex, setSpeakingSentenceIndex] = useState<number | null>(null);
+  const hasHydratedPlaybackRef = useRef(false);
 
   const loadInterview = useCallback(async () => {
     if (!interviewId) return;
@@ -175,13 +176,23 @@ export default function InterviewPage() {
   }, [interviewId, stopActiveAudio]);
 
   useEffect(() => {
-    const unseenAssistantMessages = messages.filter(
-      (m) => m.role === "assistant" && !playedAssistantIdsRef.current.has(m.id)
+    const assistantMessages = messages.filter((m) => m.role === "assistant");
+
+    if (!hasHydratedPlaybackRef.current) {
+      assistantMessages.forEach((message) => {
+        playedAssistantIdsRef.current.add(message.id);
+      });
+      hasHydratedPlaybackRef.current = true;
+      return;
+    }
+
+    const unseenAssistantMessages = assistantMessages.filter(
+      (m) => !playedAssistantIdsRef.current.has(m.id)
     );
 
     if (unseenAssistantMessages.length) setReadyToRecord(false);
 
-    if (!unseenAssistantMessages.length || isPlayingAssistantRef.current) return;
+    if (!unseenAssistantMessages.length || isPlayingAssistantRef.current || interview?.status === "completed") return;
 
     isPlayingAssistantRef.current = true;
 
@@ -197,7 +208,7 @@ export default function InterviewPage() {
       }
       isPlayingAssistantRef.current = false;
     })();
-  }, [messages, playAssistantAudio]);
+  }, [interview?.status, messages, playAssistantAudio]);
 
   async function sendTextMessage(value: string, mode: "voice" | "text") {
     if (!interviewId || !value.trim()) return;
@@ -360,7 +371,19 @@ export default function InterviewPage() {
   }, [messages]);
 
   useEffect(() => {
+    const handlePageExit = () => stopActiveAudio();
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopActiveAudio();
+    };
+
+    window.addEventListener("pagehide", handlePageExit);
+    window.addEventListener("beforeunload", handlePageExit);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      window.removeEventListener("pagehide", handlePageExit);
+      window.removeEventListener("beforeunload", handlePageExit);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopActiveAudio();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
