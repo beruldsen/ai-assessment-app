@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CAPABILITIES, type Capability } from "@/lib/capabilityFramework";
@@ -57,7 +56,6 @@ export default function InterviewStartPage() {
           <span className="badge">Format: Guided interview</span>
           <span className="badge">Mode: Voice first, text fallback</span>
           <span className="badge">Coverage: 6 capability areas</span>
-          <Link href="/interview/realtime" className="button ghost" style={{ textDecoration: "none" }}>Try realtime voice prototype</Link>
         </div>
       </div>
 
